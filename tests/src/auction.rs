@@ -16,6 +16,8 @@ use casper_types::{
 };
 use maplit::btreemap;
 
+pub const DEFAULT_MARKETPLACE_ACCOUNT: &str = "account-hash-e1a2a648532b6333c66b4fe316bff945d4d51636f5bec52161331b9dd39d3122";
+
 pub struct AuctionContract {
     pub builder: InMemoryWasmTestBuilder,
     pub auction_hash: ContractHash,
@@ -433,9 +435,10 @@ impl AuctionContract {
     }
 
     pub fn get_marketplace_balance(&self) -> U512 {
+        let marketplace_account = AccountHash::from_formatted_str(DEFAULT_MARKETPLACE_ACCOUNT).unwrap();
         let account = self
             .builder
-            .get_account(AccountHash::new([11_u8; 32]))
+            .get_account(marketplace_account)
             .expect("should get genesis account");
         self.builder.get_purse_balance(account.main_purse())
     }

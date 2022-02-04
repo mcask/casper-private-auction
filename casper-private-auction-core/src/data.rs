@@ -54,6 +54,9 @@ pub const MINIMUM_BID_STEP: &str = "minimum_bid_step";
 pub const MARKETPLACE_COMMISSION: &str = "marketplace_commission";
 pub const MARKETPLACE_ACCOUNT: &str = "marketplace_account";
 
+pub const DEFAULT_MARKETPLACE_COMMISSION: u32 = 50;
+pub const DEFAULT_MARKETPLACE_ACCOUNT: &str = "account-hash-e1a2a648532b6333c66b4fe316bff945d4d51636f5bec52161331b9dd39d3122";
+
 macro_rules! named_keys {
     ( $( ($name:expr, $value:expr) ),* ) => {
         {
@@ -304,11 +307,7 @@ fn auction_times_match() -> (u64, u64, u64) {
 pub fn create_auction_named_keys() -> NamedKeys {
     // Get the owner
     let token_owner = Key::Account(runtime::get_caller());
-    // Get the beneficiary purse
-    let beneficiary_account = match runtime::get_named_arg::<Key>(BENEFICIARY_ACCOUNT) {
-        key @ Key::Account(_) => key,
-        _ => runtime::revert(AuctionError::InvalidBeneficiary),
-    };
+
 
     // Get the auction parameters from the command line args
     let token_contract_hash: [u8; 32] = runtime::get_named_arg::<Key>(NFT_HASH)
@@ -322,6 +321,13 @@ pub fn create_auction_named_keys() -> NamedKeys {
         "DUTCH" => false,
         _ => revert(AuctionError::UnknownFormat),
     };
+
+    // Get the beneficiary purse
+    let beneficiary_account = match runtime::get_named_arg::<Key>(BENEFICIARY_ACCOUNT) {
+        key @ Key::Account(_) => key,
+        _ => runtime::revert(AuctionError::InvalidBeneficiary),
+    };
+
     // Consider optimizing away the storage of start price key for English auctions
     let (start_price, reserve_price) = match (
         english_format,
@@ -360,8 +366,9 @@ pub fn create_auction_named_keys() -> NamedKeys {
 
     let auction_timer_extension = runtime::get_named_arg::<Option<u64>>(AUCTION_TIMER_EXTENSION);
     let minimum_bid_step = runtime::get_named_arg::<Option<U512>>(MINIMUM_BID_STEP);
-    let marketplace_commission = runtime::get_named_arg::<u32>(MARKETPLACE_COMMISSION);
-    let marketplace_account = runtime::get_named_arg::<AccountHash>(MARKETPLACE_ACCOUNT);
+    // let marketplace_commission = runtime::get_named_arg::<u32>(MARKETPLACE_COMMISSION);
+    // let marketplace_account = runtime::get_named_arg::<AccountHash>(MARKETPLACE_ACCOUNT);
+    let marketplace_account = AccountHash::from_formatted_str(DEFAULT_MARKETPLACE_ACCOUNT).unwrap();
 
     let mut named_keys = named_keys!(
         (OWNER, token_owner),
@@ -383,7 +390,7 @@ pub fn create_auction_named_keys() -> NamedKeys {
         (BIDDER_NUMBER_CAP, bidder_count_cap),
         (AUCTION_TIMER_EXTENSION, auction_timer_extension),
         (MINIMUM_BID_STEP, minimum_bid_step),
-        (MARKETPLACE_COMMISSION, marketplace_commission),
+        (MARKETPLACE_COMMISSION, DEFAULT_MARKETPLACE_COMMISSION),
         (MARKETPLACE_ACCOUNT, marketplace_account)
     );
     add_empty_dict(&mut named_keys, EVENTS);
