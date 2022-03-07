@@ -459,5 +459,5 @@ fn marketplace_commission_test() {
     );
     auction_contract.finalize(&auction_contract.admin.clone(), now + 4000);
     assert!(auction_contract.is_finalized());
-    assert_eq!(auction_contract.get_marketplace_balance(), U512::from(5000));
+    assert_eq!(auction_contract.get_marketplace_balance(), U512::from(10000));
 }
