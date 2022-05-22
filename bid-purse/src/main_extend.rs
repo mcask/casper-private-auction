@@ -31,12 +31,18 @@ pub extern "C" fn call() {
     if !bidder_purse_out.is_writeable() || !bidder_purse_out.is_readable() {
         revert(ApiError::User(101));
     }
+    let pre_bid =
+        match runtime::call_contract::<Option<U512>>(auction_contract, "get_bid", runtime_args! {})
+        {
+            Some(bid) => bid,
+            None => U512::zero(),
+        };
     runtime::call_contract::<()>(
         auction_contract,
         "bid",
         runtime_args! {
             "bid_purse" => bidder_purse_out,
-            "bid" => amount
+            "bid" => amount+pre_bid
         },
     );
 }

@@ -26,7 +26,13 @@ pub extern "C" fn call() {
             new_purse
         }
     };
-    transfer_from_purse_to_purse(get_main_purse(), bidder_purse, amount, None).unwrap_or_revert();
+    let delta =
+        match runtime::call_contract::<Option<U512>>(auction_contract, "get_bid", runtime_args! {})
+        {
+            Some(bid) => amount - bid,
+            None => amount,
+        };
+    transfer_from_purse_to_purse(get_main_purse(), bidder_purse, delta, None).unwrap_or_revert();
     let bidder_purse_out = bidder_purse.into_read_write();
     if !bidder_purse_out.is_writeable() || !bidder_purse_out.is_readable() {
         revert(ApiError::User(101));

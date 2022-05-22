@@ -15,8 +15,7 @@ use casper_types::{
     ContractPackageHash, Key, PublicKey, RuntimeArgs, SecretKey, URef, U512,
 };
 use maplit::btreemap;
-
-pub const DEFAULT_MARKETPLACE_ACCOUNT: &str = "account-hash-e1a2a648532b6333c66b4fe316bff945d4d51636f5bec52161331b9dd39d3122";
+use crate::auction_args::DEFAULT_MARKETPLACE_ACCOUNT;
 
 pub struct AuctionContract {
     pub builder: InMemoryWasmTestBuilder,
@@ -50,11 +49,11 @@ impl AuctionContract {
         let ali_secret = SecretKey::ed25519_from_bytes([3u8; 32]).unwrap();
         let bob_secret = SecretKey::ed25519_from_bytes([5u8; 32]).unwrap();
 
-        let admin_pk: PublicKey = (&admin_secret).into();
+        let admin_pk: PublicKey = PublicKey::from(&admin_secret);
         let admin = admin_pk.to_account_hash();
-        let ali_pk: PublicKey = (&ali_secret).into();
+        let ali_pk: PublicKey = PublicKey::from(&ali_secret);
         let ali = ali_pk.to_account_hash();
-        let bob_pk: PublicKey = (&bob_secret).into();
+        let bob_pk: PublicKey = PublicKey::from(&bob_secret);
         let bob = bob_pk.to_account_hash();
 
         let mut builder = InMemoryWasmTestBuilder::default();
@@ -237,12 +236,18 @@ impl AuctionContract {
         token_id: &str,
         token_meta: &BTreeMap<String, String>,
         sender: &AccountHash,
-        commissions: BTreeMap<String, String>,
+        mut commissions: BTreeMap<String, String>,
     ) {
         let mut gauge: BTreeMap<String, String> = BTreeMap::new();
         gauge.insert("gauge".to_string(), "is_gaugy".to_string());
         let mut warehouse: BTreeMap<String, String> = BTreeMap::new();
         warehouse.insert("ware".to_string(), "house".to_string());
+        commissions.insert(
+            "comm_account".to_string(),
+            "Key::Account(7de52a3013f609faa38ae99af4350da6aa6b69bec0e4087ecae87c2b9486a265)"
+                .to_string(),
+        );
+        commissions.insert("comm_rate".to_string(), "55".to_string());
         let args = runtime_args! {
             "recipient" => *recipient,
             "token_ids" => Some(vec![token_id.to_string()]),
@@ -303,7 +308,40 @@ impl AuctionContract {
             bidder,
             &DeploySource::Code(session_code),
             runtime_args! {
-                "bid" => bid,
+                "amount" => bid,
+                "purse_name" => "my_auction_purse",
+                "auction_contract" => self.auction_hash
+            },
+            true,
+            Some(block_time),
+        );
+    }
+
+    pub fn extend_bid(&mut self, bidder: &AccountHash, bid: U512, block_time: u64) {
+        let session_code = PathBuf::from("extend-bid-purse.wasm");
+        deploy(
+            &mut self.builder,
+            bidder,
+            &DeploySource::Code(session_code),
+            runtime_args! {
+                "amount" => bid,
+                "purse_name" => "my_auction_purse",
+                "auction_contract" => self.auction_hash
+            },
+            true,
+            Some(block_time),
+        );
+    }
+
+    pub fn delta_bid(&mut self, bidder: &AccountHash, bid: U512, block_time: u64) {
+        let session_code = PathBuf::from("delta-bid-purse.wasm");
+        deploy(
+            &mut self.builder,
+            bidder,
+            &DeploySource::Code(session_code),
+            runtime_args! {
+                "amount" => bid,
+                "purse_name" => "my_auction_purse",
                 "auction_contract" => self.auction_hash
             },
             true,
@@ -417,7 +455,7 @@ impl AuctionContract {
     }
 
     /// Getter function for the balance of an account.
-    fn get_account_balance(&self, account_key: &AccountHash) -> U512 {
+    pub fn get_account_balance(&self, account_key: &AccountHash) -> U512 {
         let account = self
             .builder
             .get_account(*account_key)
@@ -435,6 +473,15 @@ impl AuctionContract {
     }
 
     pub fn get_marketplace_balance(&self) -> U512 {
+        let marketplace_account = AccountHash::from_formatted_str(DEFAULT_MARKETPLACE_ACCOUNT).unwrap();
+        let account = self
+            .builder
+            .get_account(marketplace_account)
+            .expect("should get genesis account");
+        self.builder.get_purse_balance(account.main_purse())
+    }
+
+    pub fn get_comm_balance(&self) -> U512 {
         let marketplace_account = AccountHash::from_formatted_str(DEFAULT_MARKETPLACE_ACCOUNT).unwrap();
         let account = self
             .builder

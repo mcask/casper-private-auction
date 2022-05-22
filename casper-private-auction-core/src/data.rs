@@ -55,7 +55,7 @@ pub const MARKETPLACE_COMMISSION: &str = "marketplace_commission";
 pub const MARKETPLACE_ACCOUNT: &str = "marketplace_account";
 
 pub const DEFAULT_MARKETPLACE_COMMISSION: u32 = 100;
-pub const DEFAULT_MARKETPLACE_ACCOUNT: &str = "account-hash-e1a2a648532b6333c66b4fe316bff945d4d51636f5bec52161331b9dd39d3122";
+pub const DEFAULT_MARKETPLACE_ACCOUNT: &str = "account-hash-7de52a3013f609faa38ae99af4350da6aa6b69bec0e4087ecae87c2b9486a265";
 
 macro_rules! named_keys {
     ( $( ($name:expr, $value:expr) ),* ) => {
@@ -288,9 +288,15 @@ impl AuctionData {
     }
 
     pub fn increase_auction_times() {
-        if let Some(increment) = read_named_key_value::<Option<u64>>(AUCTION_TIMER_EXTENSION) {
-            write_named_key_value(END, AuctionData::get_end() + increment);
-            write_named_key_value(CANCEL, AuctionData::get_cancel_time() + increment);
+        let end: u64 = read_named_key_value::<u64>(END);
+        let now: u64 = u64::from(runtime::get_blocktime());
+        if now < end {
+            let diff: u64 = end - now;
+            if let Some(increment) = read_named_key_value::<Option<u64>>(AUCTION_TIMER_EXTENSION) {
+                if diff <= increment {
+                    write_named_key_value(END, AuctionData::get_end() + increment);
+                }
+            }
         }
     }
 }
@@ -313,7 +319,11 @@ fn auction_times_match() -> (u64, u64, u64) {
 pub fn create_auction_named_keys() -> NamedKeys {
     // Get the owner
     let token_owner = Key::Account(runtime::get_caller());
-
+    // Get the beneficiary purse
+    let beneficiary_account = match runtime::get_named_arg::<Key>(BENEFICIARY_ACCOUNT) {
+        key @ Key::Account(_) => key,
+        _ => runtime::revert(AuctionError::InvalidBeneficiary),
+    };
 
     // Get the auction parameters from the command line args
     let token_contract_hash: [u8; 32] = runtime::get_named_arg::<Key>(NFT_HASH)
@@ -327,13 +337,6 @@ pub fn create_auction_named_keys() -> NamedKeys {
         "DUTCH" => false,
         _ => revert(AuctionError::UnknownFormat),
     };
-
-    // Get the beneficiary purse
-    let beneficiary_account = match runtime::get_named_arg::<Key>(BENEFICIARY_ACCOUNT) {
-        key @ Key::Account(_) => key,
-        _ => runtime::revert(AuctionError::InvalidBeneficiary),
-    };
-
     // Consider optimizing away the storage of start price key for English auctions
     let (start_price, reserve_price) = match (
         english_format,
@@ -415,6 +418,13 @@ fn add_empty_dict(named_keys: &mut NamedKeys, name: &str) {
 fn string_to_account_hash(account_string: &str) -> AccountHash {
     let account = if account_string.starts_with("account-hash-") {
         AccountHash::from_formatted_str(account_string)
+    } else if account_string.starts_with("Key::Account(") {
+        AccountHash::from_formatted_str(
+            account_string
+                .replace("Key::Account(", "account-hash-")
+                .strip_suffix(')')
+                .unwrap_or_revert(),
+        )
     } else {
         AccountHash::from_formatted_str(&format!("account-hash-{}", account_string))
     };

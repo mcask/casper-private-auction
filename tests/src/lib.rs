@@ -36,6 +36,7 @@ fn english_auction_bid_finalize_test() {
         U512::from(40000),
         auction_contract.get_winning_bid().unwrap()
     );
+    assert!(auction_contract.get_marketplace_balance() >= U512::from(4000));
 }
 
 #[test]
@@ -181,11 +182,11 @@ fn auction_unknown_format_test() {
     let ali_secret = SecretKey::ed25519_from_bytes([3u8; 32]).unwrap();
     let bob_secret = SecretKey::ed25519_from_bytes([5u8; 32]).unwrap();
 
-    let admin_pk: PublicKey = (&admin_secret).into();
+    let admin_pk: PublicKey = PublicKey::from(&admin_secret);
     let admin = admin_pk.to_account_hash();
-    let ali_pk: PublicKey = (&ali_secret).into();
+    let ali_pk: PublicKey = PublicKey::from(&ali_secret);
     let ali = ali_pk.to_account_hash();
-    let bob_pk: PublicKey = (&bob_secret).into();
+    let bob_pk: PublicKey = PublicKey::from(&bob_secret);
     let bob = bob_pk.to_account_hash();
 
     let mut builder = InMemoryWasmTestBuilder::default();
@@ -234,11 +235,11 @@ fn auction_bad_times_test() {
     let ali_secret = SecretKey::ed25519_from_bytes([3u8; 32]).unwrap();
     let bob_secret = SecretKey::ed25519_from_bytes([5u8; 32]).unwrap();
 
-    let admin_pk: PublicKey = (&admin_secret).into();
+    let admin_pk: PublicKey = PublicKey::from(&admin_secret);
     let admin = admin_pk.to_account_hash();
-    let ali_pk: PublicKey = (&ali_secret).into();
+    let ali_pk: PublicKey = PublicKey::from(&ali_secret);
     let ali = ali_pk.to_account_hash();
-    let bob_pk: PublicKey = (&bob_secret).into();
+    let bob_pk: PublicKey = PublicKey::from(&bob_secret);
     let bob = bob_pk.to_account_hash();
 
     let mut builder = InMemoryWasmTestBuilder::default();
@@ -306,11 +307,11 @@ fn auction_bid_no_kyc_token_test() {
     let ali_secret = SecretKey::ed25519_from_bytes([3u8; 32]).unwrap();
     let bob_secret = SecretKey::ed25519_from_bytes([5u8; 32]).unwrap();
 
-    let admin_pk: PublicKey = (&admin_secret).into();
+    let admin_pk: PublicKey = PublicKey::from(&admin_secret);
     let admin = admin_pk.to_account_hash();
-    let ali_pk: PublicKey = (&ali_secret).into();
+    let ali_pk: PublicKey = PublicKey::from(&ali_secret);
     let ali = ali_pk.to_account_hash();
-    let bob_pk: PublicKey = (&bob_secret).into();
+    let bob_pk: PublicKey = PublicKey::from(&bob_secret);
     let bob = bob_pk.to_account_hash();
 
     let mut builder = InMemoryWasmTestBuilder::default();
@@ -415,7 +416,7 @@ fn english_increase_time_test() {
 
     auction_contract.bid(&auction_contract.bob.clone(), U512::from(30000), now + 1000);
     assert_eq!(auction_contract.get_end(), now + 14000);
-    auction_contract.cancel_bid(&auction_contract.bob.clone(), now + 12999);
+    auction_contract.cancel_bid(&auction_contract.bob.clone(), now + 1500);
     auction_contract.finalize(&auction_contract.admin.clone(), now + 14000);
     assert!(auction_contract.is_finalized());
     assert_eq!(None, auction_contract.get_winner());
@@ -459,5 +460,42 @@ fn marketplace_commission_test() {
     );
     auction_contract.finalize(&auction_contract.admin.clone(), now + 4000);
     assert!(auction_contract.is_finalized());
-    assert_eq!(auction_contract.get_marketplace_balance(), U512::from(10000));
+    assert!(auction_contract.get_marketplace_balance() >= U512::from(10000));
+    assert!(auction_contract.get_comm_balance() > U512::from(0));
+}
+
+#[test]
+fn english_auction_bid_extend_finalize_test() {
+    let now = auction_args::AuctionArgsBuilder::get_now_u64();
+    let mut auction_contract = auction::AuctionContract::deploy_with_default_args(true, now);
+    assert!(now < auction_contract.get_end());
+    auction_contract.extend_bid(&auction_contract.bob.clone(), U512::from(30000), now);
+    auction_contract.extend_bid(&auction_contract.bob.clone(), U512::from(10000), now);
+    auction_contract.finalize(&auction_contract.admin.clone(), now + 3500);
+    assert!(auction_contract.is_finalized());
+    assert_eq!(auction_contract.bob, auction_contract.get_winner().unwrap());
+    assert_eq!(
+        U512::from(40000),
+        auction_contract.get_winning_bid().unwrap()
+    );
+}
+
+#[test]
+fn english_auction_bid_delta_finalize_test() {
+    let now = auction_args::AuctionArgsBuilder::get_now_u64();
+    let mut auction_contract = auction::AuctionContract::deploy_with_default_args(true, now);
+    let bob = auction_contract.bob;
+    assert!(now < auction_contract.get_end());
+    println!("{}", auction_contract.get_account_balance(&bob));
+    auction_contract.delta_bid(&bob, U512::from(5_000_u64), now);
+    println!("{}", auction_contract.get_account_balance(&bob));
+    auction_contract.delta_bid(&bob, U512::from(8_000_u64), now);
+    println!("{}", auction_contract.get_account_balance(&bob));
+    auction_contract.finalize(&auction_contract.admin.clone(), now + 3500);
+    assert!(auction_contract.is_finalized());
+    assert_eq!(auction_contract.bob, auction_contract.get_winner().unwrap());
+    assert_eq!(
+        U512::from(8_000_u64),
+        auction_contract.get_winning_bid().unwrap()
+    );
 }
