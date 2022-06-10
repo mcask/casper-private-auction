@@ -54,8 +54,11 @@ pub const MINIMUM_BID_STEP: &str = "minimum_bid_step";
 pub const MARKETPLACE_COMMISSION: &str = "marketplace_commission";
 pub const MARKETPLACE_ACCOUNT: &str = "marketplace_account";
 
-pub const DEFAULT_MARKETPLACE_COMMISSION: u32 = 100;
+pub const DEFAULT_MARKETPLACE_COMMISSION: u32 = 25;
 pub const DEFAULT_MARKETPLACE_ACCOUNT: &str = "account-hash-7de52a3013f609faa38ae99af4350da6aa6b69bec0e4087ecae87c2b9486a265";
+
+// pub const DEFAULT_MARKETPLACE_COMMISSION: u32 = 25;
+// pub const DEFAULT_MARKETPLACE_ACCOUNT: &str = "account-hash-e1a2a648532b6333c66b4fe316bff945d4d51636f5bec52161331b9dd39d3122";
 
 macro_rules! named_keys {
     ( $( ($name:expr, $value:expr) ),* ) => {
