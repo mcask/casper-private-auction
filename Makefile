@@ -23,7 +23,9 @@ lint: clippy format
 
 build-contract:
 	cargo build --release -p casper-private-auction-installer -p bid-purse --target wasm32-unknown-unknown
-	wasm-strip target/wasm32-unknown-unknown/release/casper-private-auction-installer.wasm
+	wasm-strip target/wasm32-unknown-unknown/release/dutch-auction-installer.wasm
+	wasm-strip target/wasm32-unknown-unknown/release/english-auction-installer.wasm
+	wasm-strip target/wasm32-unknown-unknown/release/swap-installer.wasm
 	wasm-strip target/wasm32-unknown-unknown/release/bid-purse.wasm
 	wasm-strip target/wasm32-unknown-unknown/release/extend-bid-purse.wasm
 	wasm-strip target/wasm32-unknown-unknown/release/delta-bid-purse.wasm

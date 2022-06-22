@@ -10,7 +10,7 @@ use casper_contract::{
     },
     unwrap_or_revert::UnwrapOrRevert,
 };
-use casper_private_auction_core::{auction::Auction, bids::Bids, data, AuctionLogic};
+use casper_private_auction_core::{auction::Auction, bids::Bids, data, AuctionLogic, keys, accounts, functions, constructors};
 use casper_types::{
     runtime_args, ApiError, CLType, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess,
     EntryPointType, EntryPoints, Key, Parameter, RuntimeArgs,
@@ -22,13 +22,8 @@ pub extern "C" fn bid() {
 }
 
 #[no_mangle]
-pub extern "C" fn cancel_bid() {
-    Auction::auction_cancel_bid();
-}
-
-#[no_mangle]
-pub extern "C" fn finalize() {
-    Auction::auction_finalize(true);
+pub extern "C" fn synthetic_bid() {
+    Auction::auction_synthetic_bid();
 }
 
 #[no_mangle]
@@ -37,17 +32,20 @@ pub extern "C" fn cancel_auction() {
 }
 
 #[no_mangle]
-pub extern "C" fn get_bid() {
-    let bids = Bids::at();
-    let bid = bids.get(&get_caller());
-    runtime::ret(CLValue::from_t(bid).unwrap_or_revert());
+pub extern "C" fn approve() {
+    Auction::approve();
+}
+
+#[no_mangle]
+pub extern "C" fn reject() {
+    Auction::reject();
 }
 
 #[no_mangle]
 pub extern "C" fn init() {
-    if runtime::get_key(data::AUCTION_PURSE).is_none() {
+    if runtime::get_key(keys::AUCTION_PURSE).is_none() {
         let purse = system::create_purse();
-        runtime::put_key(data::AUCTION_PURSE, purse.into());
+        runtime::put_key(keys::AUCTION_PURSE, purse.into());
         Bids::init();
     }
 }
@@ -56,10 +54,10 @@ pub fn get_entry_points() -> EntryPoints {
     let mut entry_points = EntryPoints::new();
 
     entry_points.add_entry_point(EntryPoint::new(
-        data::BID,
+        functions::BID,
         vec![
-            Parameter::new(data::BID, CLType::U512),
-            Parameter::new(data::BID_PURSE, CLType::URef),
+            Parameter::new(keys::BID, CLType::U512),
+            Parameter::new(keys::BID_PURSE, CLType::URef),
         ],
         CLType::Unit,
         EntryPointAccess::Public,
@@ -67,7 +65,18 @@ pub fn get_entry_points() -> EntryPoints {
     ));
 
     entry_points.add_entry_point(EntryPoint::new(
-        data::CANCEL_FUNC,
+        functions::SYNTHETIC_BID,
+        vec![
+            Parameter::new(keys::BID, CLType::U512),
+            Parameter::new(keys::BIDDER, CLType::Key),
+        ],
+        CLType::Unit,
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    ));
+
+    entry_points.add_entry_point(EntryPoint::new(
+        functions::CANCEL_AUCTION,
         vec![],
         CLType::Unit,
         EntryPointAccess::Public,
@@ -75,7 +84,7 @@ pub fn get_entry_points() -> EntryPoints {
     ));
 
     entry_points.add_entry_point(EntryPoint::new(
-        data::FINALIZE_FUNC,
+        functions::APPROVE,
         vec![],
         CLType::Unit,
         EntryPointAccess::Public,
@@ -83,7 +92,7 @@ pub fn get_entry_points() -> EntryPoints {
     ));
 
     entry_points.add_entry_point(EntryPoint::new(
-        data::CANCEL_AUCTION_FUNC,
+        functions::REJECT,
         vec![],
         CLType::Unit,
         EntryPointAccess::Public,
@@ -91,15 +100,7 @@ pub fn get_entry_points() -> EntryPoints {
     ));
 
     entry_points.add_entry_point(EntryPoint::new(
-        "get_bid",
-        vec![],
-        CLType::Option(Box::new(CLType::U512)),
-        EntryPointAccess::Public,
-        EntryPointType::Contract,
-    ));
-
-    entry_points.add_entry_point(EntryPoint::new(
-        "init",
+        functions::INIT,
         vec![],
         CLType::Unit,
         EntryPointAccess::Public,
@@ -112,13 +113,16 @@ pub fn get_entry_points() -> EntryPoints {
 #[no_mangle]
 pub extern "C" fn call() {
     let entry_points = get_entry_points();
-    let auction_named_keys = data::create_auction_named_keys();
+    let auction_named_keys = constructors::create_dutch_auction_named_keys(
+        Option::Some(accounts::MARKETPLACE_ACCOUNT),
+        Option::Some(accounts::MARKETPLACE_COMMISSION),
+    );
     let auction_desig: String = runtime::get_named_arg("name");
     let (auction_hash, _) = storage::new_locked_contract(
         entry_points,
         Some(auction_named_keys),
-        Some(format!("{}_{}", auction_desig, data::AUCTION_CONTRACT_HASH)),
-        Some(format!("{}_{}", auction_desig, data::AUCTION_ACCESS_TOKEN)),
+        Some(format!("{}_{}", auction_desig, keys::AUCTION_CONTRACT_HASH)),
+        Some(format!("{}_{}", auction_desig, keys::AUCTION_ACCESS_TOKEN)),
     );
     let auction_key = Key::Hash(auction_hash.value());
     runtime::put_key(
@@ -131,21 +135,21 @@ pub extern "C" fn call() {
     );
 
     // Create purse in the contract's context
-    runtime::call_contract::<()>(auction_hash, "init", runtime_args! {});
+    runtime::call_contract::<()>(auction_hash, functions::INIT, runtime_args! {});
 
     // Hash of the NFT contract put up for auction
     let token_contract_hash = ContractPackageHash::new(
-        runtime::get_named_arg::<Key>(data::NFT_HASH)
+        runtime::get_named_arg::<Key>(keys::NFT_HASH)
             .into_hash()
             .unwrap_or_revert_with(ApiError::User(200)),
     );
     // Transfer the NFT ownership to the auction
-    let token_ids = vec![runtime::get_named_arg::<String>(data::TOKEN_ID)];
+    let token_ids = vec![runtime::get_named_arg::<String>(keys::TOKEN_ID)];
 
     let auction_contract_package_hash = runtime::get_key(&format!(
         "{}_{}",
         auction_desig,
-        data::AUCTION_CONTRACT_HASH
+        keys::AUCTION_CONTRACT_HASH
     ))
     .unwrap_or_revert_with(ApiError::User(201));
     runtime::put_key(

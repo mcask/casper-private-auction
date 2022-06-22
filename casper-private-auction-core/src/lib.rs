@@ -19,14 +19,38 @@ pub mod error;
 pub mod data;
 pub mod bids;
 pub mod events;
+pub mod keys;
+pub mod functions;
+pub mod accounts;
+pub mod utils;
+pub mod constructors;
 
 pub trait AuctionLogic {
-    fn auction_bid();
-    fn auction_cancel_bid();
-    fn auction_allocate(winner: Option<AccountHash>);
-    fn auction_transfer(winner: Option<AccountHash>);
-    fn auction_finalize(time_check: bool);
-    fn cancel_auction();
+    fn allocate(winner: Option<AccountHash>);
+    fn transfer(winner: Option<AccountHash>);
+    fn finalize(time_check: bool);
+    fn approve(time_check: boo);
+    fn reject(time_check: boo);
+}
+
+pub trait EnglishAuctionLogic {
+    fn bid();
+    fn synthetic_bid();
+    fn cancel_bid();
+    fn cancel_synthetic_bid();
+    fn cancel();
+}
+
+pub trait DutchAuctionLogic {
+    fn hit();
+    fn synthetic_hit();
+    fn cancel();
+}
+
+pub trait SwapLogic {
+    fn take();
+    fn synthetic_take();
+    fn cancel();
 }
 
 struct Dict {

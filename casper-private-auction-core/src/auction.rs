@@ -25,14 +25,14 @@ impl Auction {
         if !AuctionData::is_auction_live() || AuctionData::is_finalized() {
             runtime::revert(AuctionError::BadState)
         }
-        if !AuctionData::is_kyc_proved() {
+        if !AuctionData::is_verified() {
             runtime::revert(AuctionError::KYCError);
         }
         // Get the existing bid, if any
-        let mut bids = AuctionData::get_bids();
-        let auction_purse = AuctionData::get_auction_purse();
+        let mut bids = AuctionData::bids();
+        let auction_purse = AuctionData::auction_purse();
         if bids.get(&bidder).is_none() {
-            if let Some(bidder_cap) = AuctionData::get_bidder_count_cap() {
+            if let Some(bidder_cap) = AuctionData::bidder_count_cap() {
                 if bidder_cap <= bids.len() {
                     if let Some((lowest_bidder, lowest_bid)) = bids.get_spot(new_bid) {
                         bids.remove_by_key(&lowest_bidder);
@@ -67,7 +67,7 @@ impl Auction {
     }
 
     fn find_new_winner() -> Option<(AccountHash, U512)> {
-        let bids = AuctionData::get_bids();
+        let bids = AuctionData::bids();
         let winning_pair = bids.max_by_key();
         match winning_pair {
             Some((key, bid)) => Some((key, bid)),
@@ -102,9 +102,9 @@ impl Auction {
             }
         };
         let mut token_ids = alloc::vec::Vec::new();
-        token_ids.push(AuctionData::get_token_id());
+        token_ids.push(AuctionData::token_id());
         runtime::call_versioned_contract(
-            AuctionData::get_nft_hash(),
+            AuctionData::token_package_hash(),
             None,
             "transfer",
             runtime_args! {
@@ -120,28 +120,28 @@ impl crate::AuctionLogic for Auction {
     fn auction_allocate(winner: Option<AccountHash>) {
         match winner {
             Some(acct) => Self::auction_transfer_token(Key::Account(acct)),
-            _ => Self::auction_transfer_token(AuctionData::get_token_owner()),
+            _ => Self::auction_transfer_token(AuctionData::token_owner()),
         }
     }
 
     fn auction_transfer(winner: Option<AccountHash>) {
         fn return_bids(auction_purse: URef) {
-            let mut bids = AuctionData::get_bids();
+            let mut bids = AuctionData::bids();
             for (bidder, bid) in &bids.to_map() {
                 system::transfer_from_purse_to_account(auction_purse, *bidder, *bid, None)
                     .unwrap_or_revert_with(AuctionError::AuctionEndReturnBids);
             }
             bids.clear();
         }
-        let auction_purse = AuctionData::get_auction_purse();
+        let auction_purse = AuctionData::auction_purse();
         match winner {
             Some(key) => {
-                let mut bids = AuctionData::get_bids();
+                let mut bids = AuctionData::bids();
                 match bids.get(&key) {
                     Some(bid) => {
                         // Marketplace share first, then people get money
                         let (marketplace_account, marketplace_commission) =
-                            AuctionData::get_marketplace_data();
+                            AuctionData::marketplace_data();
                         let market_share = bid / 1000 * marketplace_commission;
                         system::transfer_from_purse_to_account(
                             auction_purse,
@@ -154,7 +154,7 @@ impl crate::AuctionLogic for Auction {
                         // Every actor receives x one-thousandth of the winning bid, the surplus goes to the designated beneficiary account.
                         let share_piece = bid / 1000;
                         let mut given_as_shares = U512::zero();
-                        for (account, share) in AuctionData::get_commission_shares() {
+                        for (account, share) in AuctionData::compute_commissions() {
                             let actor_share = share_piece * share;
                             system::transfer_from_purse_to_account(
                                 auction_purse,
@@ -167,7 +167,7 @@ impl crate::AuctionLogic for Auction {
                         }
                         system::transfer_from_purse_to_account(
                             auction_purse,
-                            AuctionData::get_beneficiary(),
+                            AuctionData::beneficiary_account(),
                             bid - given_as_shares,
                             None,
                         )
@@ -189,7 +189,7 @@ impl crate::AuctionLogic for Auction {
         if !AuctionData::is_auction_live() || AuctionData::is_finalized() {
             runtime::revert(AuctionError::BadState)
         }
-        if !AuctionData::is_kyc_proved() {
+        if !AuctionData::is_verified() {
             runtime::revert(AuctionError::KYCError);
         }
         if get_call_stack().len() != 2 {
@@ -199,7 +199,7 @@ impl crate::AuctionLogic for Auction {
         // Figure out who is trying to bid and what their bid is
         let bidder = Self::get_bidder();
         let bid = runtime::get_named_arg::<U512>(crate::data::BID);
-        if bid < AuctionData::get_reserve() {
+        if bid < AuctionData::reserve_price() {
             runtime::revert(AuctionError::BidBelowReserve);
         }
         let bidder_purse = runtime::get_named_arg::<URef>(crate::data::BID_PURSE);
@@ -208,12 +208,12 @@ impl crate::AuctionLogic for Auction {
         let price = AuctionData::get_price();
         if !AuctionData::is_english_format() {
             if let (None, None) = (winner, price) {
-                let current_price = AuctionData::get_current_price();
+                let current_price = AuctionData::current_price();
                 if bid < current_price {
                     runtime::revert(AuctionError::BidTooLow);
                 }
                 Self::add_bid(bidder, bidder_purse, current_price);
-                AuctionData::set_winner(Some(bidder), Some(bid));
+                AuctionData::update_current_winner(Some(bidder), Some(bid));
                 Self::auction_finalize(false);
             } else {
                 runtime::revert(AuctionError::BadState);
@@ -221,33 +221,33 @@ impl crate::AuctionLogic for Auction {
         } else {
             Self::add_bid(bidder, bidder_purse, bid);
             if let (Some(_), Some(current_price)) = (winner, price) {
-                let min_step = AuctionData::get_minimum_bid_step().unwrap_or_default();
+                let min_step = AuctionData::minimum_bid_step().unwrap_or_default();
                 if bid > current_price && bid - current_price >= min_step {
-                    AuctionData::set_winner(Some(bidder), Some(bid));
+                    AuctionData::update_current_winner(Some(bidder), Some(bid));
                 } else {
                     runtime::revert(AuctionError::BidTooLow)
                 }
             } else if let (None, None) = (winner, price) {
-                AuctionData::set_winner(Some(bidder), Some(bid));
+                AuctionData::update_current_winner(Some(bidder), Some(bid));
             } else {
                 runtime::revert(AuctionError::BadState)
             }
         }
 
-        AuctionData::increase_auction_times();
+        AuctionData::extend_auction();
         emit(&AuctionEvent::Bid { bidder, bid })
     }
 
     fn auction_cancel_bid() {
         let bidder = Self::get_bidder();
 
-        if u64::from(runtime::get_blocktime()) < AuctionData::get_cancel_time() {
-            let mut bids = AuctionData::get_bids();
+        if u64::from(runtime::get_blocktime()) < AuctionData::cancel_time() {
+            let mut bids = AuctionData::bids();
 
             match bids.get(&bidder) {
                 Some(current_bid) => {
                     system::transfer_from_purse_to_account(
-                        AuctionData::get_auction_purse(),
+                        AuctionData::auction_purse(),
                         bidder,
                         current_bid,
                         None,
@@ -255,8 +255,8 @@ impl crate::AuctionLogic for Auction {
                     .unwrap_or_revert_with(AuctionError::AuctionCancelReturnBid);
                     bids.remove_by_key(&bidder);
                     match Self::find_new_winner() {
-                        Some((winner, bid)) => AuctionData::set_winner(Some(winner), Some(bid)),
-                        _ => AuctionData::set_winner(None, None),
+                        Some((winner, bid)) => AuctionData::update_current_winner(Some(winner), Some(bid)),
+                        _ => AuctionData::update_current_winner(None, None),
                     }
                 }
                 None => runtime::revert(AuctionError::NoBid),
@@ -274,7 +274,7 @@ impl crate::AuctionLogic for Auction {
         };
 
         // We're not finalized, so let's get all the other arguments, as well as time to make sure we're not too early
-        if time_check && u64::from(runtime::get_blocktime()) < AuctionData::get_end() {
+        if time_check && u64::from(runtime::get_blocktime()) < AuctionData::end_time() {
             runtime::revert(AuctionError::EarlyFinalize)
         }
 
@@ -297,10 +297,10 @@ impl crate::AuctionLogic for Auction {
     }
 
     fn cancel_auction() {
-        if AuctionData::get_token_owner() != Key::Account(runtime::get_caller()) {
+        if AuctionData::token_owner() != Key::Account(runtime::get_caller()) {
             runtime::revert(AuctionError::InvalidCaller);
         }
-        if !AuctionData::get_bids().is_empty() && AuctionData::get_winner().is_some() {
+        if !AuctionData::bids().is_empty() && AuctionData::get_winner().is_some() {
             runtime::revert(AuctionError::CannotCancelAuction);
         }
 

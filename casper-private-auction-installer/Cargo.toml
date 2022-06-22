@@ -11,9 +11,30 @@ casper-contract = "1.4.3"
 casper-types = "1.4.6"
 casper-private-auction-core = { path = "../casper-private-auction-core"}
 
+#[[bin]]
+#name = "casper-private-auction-installer"
+#path = "src/main.rs"
+#bench = false
+#doctest = false
+#test = false
+
 [[bin]]
-name = "casper-private-auction-installer"
-path = "src/main.rs"
+name = "dutch-auction-installer"
+path = "src/dutch.rs"
+bench = false
+doctest = false
+test = false
+
+[[bin]]
+name = "english-auction-installer"
+path = "src/english.rs"
+bench = false
+doctest = false
+test = false
+
+[[bin]]
+name = "swap-installer"
+path = "src/swap.rs"
 bench = false
 doctest = false
 test = false
