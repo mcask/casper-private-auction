@@ -1,13 +1,13 @@
-use alloc::collections::BTreeMap;
 use alloc::string::String;
 use casper_contract::contract_api::runtime;
+use casper_contract::contract_api::storage;
 use casper_contract::contract_api::runtime::revert;
 use casper_contract::unwrap_or_revert::UnwrapOrRevert;
-use casper_types::{ContractPackageHash, Key, runtime_args, U512};
+use casper_types::{ContractPackageHash, Key, U512};
 use casper_types::account::AccountHash;
 use casper_types::contracts::NamedKeys;
 use crate::{AuctionError, keys, utils};
-use crate::data::AuctionData;
+use crate::data::{AuctionData, DUTCH_AUCTION, ENGLISH_AUCTION, SWAP};
 
 macro_rules! named_keys {
     ( $( ($name:expr, $value:expr) ),* ) => {
@@ -45,17 +45,16 @@ fn get_fixed_times() -> (u64, u64) {
 }
 
 fn validate_commissions(token_id: &String, token_package_hash: &ContractPackageHash) {
-    let commissions = AuctionData::load_commissions();
+    let commissions = AuctionData::load_commissions(&token_id, &token_package_hash);
 
     let mut share_sum = 0;
     for (key, value) in &commissions {
-        let mut split = key.split('_');
-        let property = split
-            .next()
-            .unwrap_or_revert_with(AuctionError::CommissionPropertySplit);
+        let property = key.split('_').next();
         match property {
-            "account" => utils::string_to_account_hash(value),
-            "rate" => {
+            Some("account") => {
+                utils::string_to_account_hash(value);
+            },
+            Some("rate") => {
                 share_sum += utils::string_to_u16(value);
             }
             _ => revert(AuctionError::InvalidcommissionProperty),
@@ -80,14 +79,14 @@ fn get_token() -> (Key, Key, String, ContractPackageHash) {
     return (token_owner, beneficiary_account, token_id, ContractPackageHash::from(token_contract_hash));
 }
 
-fn get_marketplace_commissions(ma: &Option<&str>, mc: &Option<u16>) -> (AccountHash, &u16) {
+fn get_marketplace_commissions(ma: &Option<String>, mc: &Option<u32>) -> (AccountHash, u32) {
     let marketplace_commission = match mc {
-        Some(i) => i,
-        None() => runtime::get_named_arg::<u16>(keys::MARKETPLACE_COMMISSION)
+        Some(i) => *i,
+        None => runtime::get_named_arg::<u32>(keys::MARKETPLACE_COMMISSION)
     };
     let marketplace_account = match ma {
         Some(a) => utils::string_to_account_hash(a),
-        None() => runtime::get_named_arg::<AccountHash>(keys::MARKETPLACE_ACCOUNT)
+        None => runtime::get_named_arg::<AccountHash>(keys::MARKETPLACE_ACCOUNT)
     };
     return (marketplace_account, marketplace_commission);
 }
@@ -96,17 +95,17 @@ fn get_proxy_contracts() -> (Option<ContractPackageHash>, Option<ContractPackage
     let kyc_package_hash = match runtime::get_named_arg::<Key>(keys::KYC_PACKAGE_HASH)
         .into_hash() {
         Some(v) => Some(ContractPackageHash::from(v)),
-        None() => None,
+        None => None,
     };
     let synth_package_hash = match runtime::get_named_arg::<Key>(keys::SYNTHETIC_PACKAGE_HASH)
         .into_hash() {
         Some(v) => Some(ContractPackageHash::from(v)),
-        None() => None,
+        None => None,
     };
     return (kyc_package_hash, synth_package_hash);
 }
 
-pub fn create_english_auction_named_keys(ma: Option<&str>, mc: Option<u16>) -> NamedKeys {
+pub fn create_english_auction_named_keys(ma: Option<String>, mc: Option<u32>) -> NamedKeys {
     // Marketplace commission structure
     let (marketplace_account, marketplace_commission) = get_marketplace_commissions(&ma, &mc);
 
@@ -130,9 +129,9 @@ pub fn create_english_auction_named_keys(ma: Option<&str>, mc: Option<u16>) -> N
 
     // Auction properties
     let bidder_count_cap = runtime::get_named_arg::<Option<u64>>(keys::BIDDER_NUMBER_CAP)
-        .unwrap_or_revert(5);
+        .unwrap_or_else(|| 5);
     let auction_timer_extension = runtime::get_named_arg::<Option<u64>>(keys::AUCTION_TIMER_EXTENSION)
-        .unwrap_or_revert(5 * 60 * 1000);
+        .unwrap_or_else(|| 5 * 60 * 1000);
     let minimum_bid_step = runtime::get_named_arg::<Option<U512>>(keys::MINIMUM_BID_STEP);
 
     let mut named_keys = named_keys!(
@@ -141,7 +140,7 @@ pub fn create_english_auction_named_keys(ma: Option<&str>, mc: Option<u16>) -> N
         (keys::TOKEN_PACKAGE_HASH, token_package_hash),
         (keys::KYC_PACKAGE_HASH, kyc_package_hash),
         (keys::SYNTHETIC_PACKAGE_HASH, synth_package_hash),
-        (keys::AUCTION_FORMAT, 0_u8),
+        (keys::AUCTION_FORMAT, ENGLISH_AUCTION),
         (keys::TOKEN_ID, token_id),
         (keys::START, start_time),
         (keys::CANCEL, cancellation_time),
@@ -161,7 +160,7 @@ pub fn create_english_auction_named_keys(ma: Option<&str>, mc: Option<u16>) -> N
     named_keys
 }
 
-pub fn create_dutch_auction_named_keys(ma: Option<&str>, mc: Option<u16>) -> NamedKeys {
+pub fn create_dutch_auction_named_keys(ma: Option<String>, mc: Option<u32>) -> NamedKeys {
     // Marketplace commission structure
     let (marketplace_account, marketplace_commission) = get_marketplace_commissions(&ma, &mc);
 
@@ -190,7 +189,7 @@ pub fn create_dutch_auction_named_keys(ma: Option<&str>, mc: Option<u16>) -> Nam
         (keys::TOKEN_PACKAGE_HASH, token_package_hash),
         (keys::KYC_PACKAGE_HASH, kyc_package_hash),
         (keys::SYNTHETIC_PACKAGE_HASH, synth_package_hash),
-        (keys::AUCTION_FORMAT, 1_u8),
+        (keys::AUCTION_FORMAT, DUTCH_AUCTION),
         (keys::TOKEN_ID, token_id),
         (keys::START, start_time),
         (keys::END, end_time),
@@ -207,7 +206,7 @@ pub fn create_dutch_auction_named_keys(ma: Option<&str>, mc: Option<u16>) -> Nam
     named_keys
 }
 
-pub fn create_swap_named_keys(ma: Option<&str>, mc: Option<u16>) -> NamedKeys {
+pub fn create_swap_named_keys(ma: Option<String>, mc: Option<u32>) -> NamedKeys {
     // Marketplace commission structure
     let (marketplace_account, marketplace_commission) = get_marketplace_commissions(&ma, &mc);
 
@@ -234,7 +233,7 @@ pub fn create_swap_named_keys(ma: Option<&str>, mc: Option<u16>) -> NamedKeys {
         (keys::TOKEN_PACKAGE_HASH, token_package_hash),
         (keys::KYC_PACKAGE_HASH, kyc_package_hash),
         (keys::SYNTHETIC_PACKAGE_HASH, synth_package_hash),
-        (keys::AUCTION_FORMAT, 2_u8),
+        (keys::AUCTION_FORMAT, SWAP),
         (keys::TOKEN_ID, token_id),
         (keys::START, start_time),
         (keys::END, end_time),

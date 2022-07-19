@@ -1,27 +1,34 @@
-use crate::data::{EVENTS, EVENTS_COUNT};
 use crate::error::AuctionError;
 use alloc::collections::BTreeMap;
-use alloc::format;
 use alloc::string::{String, ToString};
 use casper_contract::contract_api::runtime::{self, revert};
 use casper_contract::contract_api::storage;
 use casper_contract::unwrap_or_revert::UnwrapOrRevert;
 use casper_types::Key;
 use casper_types::{account::AccountHash, U512};
+use crate::keys::{EVENTS, EVENTS_COUNT};
+
 pub enum AuctionEvent {
     Bid {
-        bidder: AccountHash,
+        account: AccountHash,
         bid: U512,
-    },
-    SetWinner {
-        bidder: Option<AccountHash>,
-        bid: Option<U512>,
+        synthetic: bool,
     },
     BidCancelled {
-        bidder: AccountHash,
+        account: AccountHash,
     },
-    Finalized {
-        winner: Option<(AccountHash, U512)>,
+    Cancelled {
+    },
+    PendingSettlement {
+        account: AccountHash,
+        bid: (U512, bool),
+    },
+    SettlementRejected {
+        account: Option<AccountHash>,
+    },
+    Settled {
+        account: Option<AccountHash>,
+        bid: Option<(U512, bool)>,
     },
 }
 
@@ -29,50 +36,64 @@ pub fn emit(event: &AuctionEvent) {
     let mut events_count = get_events_count();
 
     let (emit_event, event_id): (BTreeMap<&str, String>, String) = match event {
-        AuctionEvent::Bid { bidder, bid } => {
+        AuctionEvent::Bid { account, bid, synthetic } => {
             let mut event = BTreeMap::new();
             let event_id = events_count.to_string();
             event.insert("event_id", event_id.clone());
-            event.insert("bidder", bidder.to_string());
+            event.insert("account", account.to_string());
             event.insert("event_type", "Bid".to_string());
             event.insert("bid", bid.to_string());
+            event.insert("synthetic", synthetic.to_string());
             (event, event_id)
         }
-        AuctionEvent::SetWinner { bidder, bid } => {
+        AuctionEvent::BidCancelled { account } => {
             let mut event = BTreeMap::new();
             let event_id = events_count.to_string();
             event.insert("event_id", event_id.clone());
-            if bidder.is_some() {
-                event.insert("winner", bidder.unwrap().to_string());
-            }
-            event.insert("event_type", "Bid".to_string());
-            if bid.is_some() {
-                event.insert("bid", bid.unwrap().to_string());
-            }
-            (event, event_id)
-        }
-        AuctionEvent::BidCancelled { bidder } => {
-            let mut event = BTreeMap::new();
-            let event_id = events_count.to_string();
-            event.insert("event_id", event_id.clone());
-            event.insert("bidder", bidder.to_string());
+            event.insert("account", account.to_string());
             event.insert("event_type", "BidCancelled".to_string());
             (event, event_id)
         }
-        AuctionEvent::Finalized { winner } => {
+        AuctionEvent::Cancelled { } => {
             let mut event = BTreeMap::new();
             let event_id = events_count.to_string();
             event.insert("event_id", event_id.clone());
-            event.insert(
-                "winner",
-                match winner {
-                    Some((bidder, bid)) => {
-                        format!("{}:{}", bidder, bid)
-                    }
-                    None => "None".to_string(),
-                },
-            );
-            event.insert("event_type", "Finalized".to_string());
+            event.insert("event_type", "Cancelled".to_string());
+            (event, event_id)
+        }
+        AuctionEvent::PendingSettlement { account, bid } => {
+            let mut event = BTreeMap::new();
+            let event_id = events_count.to_string();
+            event.insert("event_id", event_id.clone());
+            event.insert("account", account.to_string());
+            event.insert("bid", bid.0.to_string());
+            event.insert("synthetic", bid.1.to_string());
+            event.insert("event_type", "PendingSettlement".to_string());
+            (event, event_id)
+        }
+        AuctionEvent::SettlementRejected { account } => {
+            let mut event = BTreeMap::new();
+            let event_id = events_count.to_string();
+            event.insert("event_id", event_id.clone());
+            if account.is_some() {
+                event.insert("account", account.unwrap().to_string());
+            }
+            event.insert("event_type", "SettlementRejected".to_string());
+            (event, event_id)
+        }
+        AuctionEvent::Settled { account, bid } => {
+            let mut event = BTreeMap::new();
+            let event_id = events_count.to_string();
+            event.insert("event_id", event_id.clone());
+            if account.is_some() {
+                event.insert("account", account.unwrap().to_string());
+            }
+            if bid.is_some() {
+                let wb = bid.unwrap();
+                event.insert("bid", wb.0.to_string());
+                event.insert("synthetic", wb.1.to_string());
+            }
+            event.insert("event_type", "Settled".to_string());
             (event, event_id)
         }
     };

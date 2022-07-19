@@ -10,40 +10,94 @@ use casper_contract::{
     },
     unwrap_or_revert::UnwrapOrRevert,
 };
-use casper_private_auction_core::{auction::Auction, bids::Bids, data, AuctionLogic, keys, accounts, functions, constructors};
-use casper_types::{
-    runtime_args, ApiError, CLType, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess,
-    EntryPointType, EntryPoints, Key, Parameter, RuntimeArgs,
-};
+use casper_private_auction_core::{auction::Auction, bids::Bids, data, keys, accounts, functions, constructors};
+use casper_types::{runtime_args, ApiError, CLType, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, Key, Parameter, RuntimeArgs, U512, URef};
+use casper_private_auction_core::data::AuctionData;
+use casper_private_auction_core::english::EnglishAuction;
+use casper_private_auction_core::error::AuctionError;
 
 #[no_mangle]
 pub extern "C" fn bid() {
-    Auction::auction_bid();
+    // Standard bids have to be done via session code
+    if runtime::get_call_stack().len() != 2 {
+        runtime::revert(AuctionError::DisallowedMiddleware);
+    }
+
+    Auction::check_valid();
+
+    // Ensure the purse is configured correctly
+    let bidder_purse = runtime::get_named_arg::<URef>(keys::BID_PURSE);
+    if !bidder_purse.is_writeable() || !bidder_purse.is_readable() {
+        runtime::revert(AuctionError::BidderPurseBadPermission)
+    }
+
+    // Get the caller from the stack
+    let account = AuctionData::current_bidder();
+    Auction::verify(&account);
+
+    // Place the bid
+    let bid = runtime::get_named_arg::<U512>(keys::BID);
+    EnglishAuction::bid(account, bid, Some(bidder_purse));
 }
 
 #[no_mangle]
 pub extern "C" fn synthetic_bid() {
-    Auction::auction_synthetic_bid();
+    // Only admin is allowed to call this
+    Auction::check_admin();
+
+    // Ensure auction is still valid
+    Auction::check_valid();
+
+    // Check the user is allowed to bid synthetically..
+    let account = runtime::get_named_arg::<Key>(keys::BIDDER);
+    let bid = runtime::get_named_arg::<U512>(keys::BID);
+    Auction::synth_allowed(&account,&bid);
+
+    EnglishAuction::bid(account, bid, Option::<URef>::None);
 }
 
 #[no_mangle]
 pub extern "C" fn cancel_bid() {
-    Auction::auction_cancel_bid();
+    // This checks we are within cancel time
+    EnglishAuction::check_valid();
+
+    // Get the caller from the environment
+    let account = AuctionData::current_caller();
+    Auction::verify(&account);
+
+    EnglishAuction::cancel_bid(account);
 }
 
 #[no_mangle]
 pub extern "C" fn cancel_synthetic_bid() {
-    Auction::auction_cancel_synthetic_bid();
+    // Only admin is allowed to call this
+    Auction::check_admin();
+    // This checks we are within cancel time
+    EnglishAuction::check_valid();
+
+    // All the details are passed in
+    let account = runtime::get_named_arg::<Key>(keys::BIDDER);
+    Auction::synth_enabled(&account);
+
+    EnglishAuction::cancel_bid(account);
 }
 
 #[no_mangle]
 pub extern "C" fn cancel_auction() {
-    Auction::cancel_auction();
+    Auction::check_valid();
+
+    // Only owner is allowed to cancel
+    Auction::check_owner();
+
+    EnglishAuction::cancel();
 }
 
 #[no_mangle]
 pub extern "C" fn finalize() {
-    Auction::auction_finalize(true);
+    // Only owner is allowed to finalize
+    Auction::check_owner();
+
+    EnglishAuction::finalize(true);
 }
 
 #[no_mangle]
@@ -155,8 +209,8 @@ pub fn get_entry_points() -> EntryPoints {
 pub extern "C" fn call() {
     let entry_points = get_entry_points();
     let auction_named_keys = constructors::create_english_auction_named_keys(
-        Option::Some(accounts::MARKETPLACE_ACCOUNT),
-        Option::Some(accounts::MARKETPLACE_COMMISSION),
+        Option::Some(accounts::MARKETPLACE_ACCOUNT.into()),
+        Option::Some(accounts::MARKETPLACE_COMMISSION.into()),
     );
     let auction_desig: String = runtime::get_named_arg("name");
     let (auction_hash, _) = storage::new_locked_contract(
@@ -180,7 +234,7 @@ pub extern "C" fn call() {
 
     // Hash of the NFT contract put up for auction
     let token_contract_hash = ContractPackageHash::new(
-        runtime::get_named_arg::<Key>(keys::NFT_HASH)
+        runtime::get_named_arg::<Key>(keys::TOKEN_PACKAGE_HASH)
             .into_hash()
             .unwrap_or_revert_with(ApiError::User(200)),
     );

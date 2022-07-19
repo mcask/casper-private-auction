@@ -1,17 +1,18 @@
 #![no_std]
 
+extern crate alloc;
+
 use casper_contract::{
     contract_api::{runtime, storage},
     unwrap_or_revert::UnwrapOrRevert,
 };
 use casper_types::{
-    account::AccountHash,
     bytesrepr::{FromBytes, ToBytes},
     CLTyped, Key, URef,
 };
+
 use error::AuctionError;
 
-extern crate alloc;
 
 pub mod auction;
 pub mod error;
@@ -24,34 +25,9 @@ pub mod functions;
 pub mod accounts;
 pub mod utils;
 pub mod constructors;
-
-pub trait AuctionLogic {
-    fn allocate(winner: Option<AccountHash>);
-    fn transfer(winner: Option<AccountHash>);
-    fn finalize(time_check: bool);
-    fn approve(time_check: boo);
-    fn reject(time_check: boo);
-}
-
-pub trait EnglishAuctionLogic {
-    fn bid();
-    fn synthetic_bid();
-    fn cancel_bid();
-    fn cancel_synthetic_bid();
-    fn cancel();
-}
-
-pub trait DutchAuctionLogic {
-    fn hit();
-    fn synthetic_hit();
-    fn cancel();
-}
-
-pub trait SwapLogic {
-    fn take();
-    fn synthetic_take();
-    fn cancel();
-}
+pub mod english;
+pub mod dutch;
+pub mod swap;
 
 struct Dict {
     uref: URef,

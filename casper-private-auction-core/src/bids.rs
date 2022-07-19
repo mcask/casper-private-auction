@@ -68,14 +68,14 @@ impl Bids {
     }
 
     // If exists, returns the value stored under a key.
-    pub fn get(&self, key: &AccountHash) -> Option<U512> {
+    pub fn get(&self, key: &AccountHash) -> Option<(U512, bool)> {
         storage::dictionary_get(self.key_uref, &key.to_string())
             .unwrap_or_revert_with(AuctionError::DictionaryGetFailBidsGet)
             .unwrap_or_default()
     }
 
     // Getter for the value at the nth place in the dictionary.
-    pub fn nth(&mut self, n: u64) -> Option<U512> {
+    pub fn nth(&mut self, n: u64) -> Option<(U512, bool)> {
         if let Some(key) = self.get_key_by_index(n) {
             let ret = self.get(&key);
             return ret;
@@ -83,37 +83,45 @@ impl Bids {
         None
     }
 
-    // Public method for adding new entry to the Bids. If key already exists, does nothing.
-    pub fn insert(&mut self, key: &AccountHash, value: U512) {
-        if self.get(key).is_none() {
-            self.set_value_to_key(key, Some(value));
-            self.set_key_to_index(self.len, key);
-            self.set_len(self.len + 1);
-        }
+    pub fn insert(&mut self, key: &AccountHash, value: U512, synthetic: bool) {
+        self.insert_key_value(key, Some((value, synthetic)));
+        self.insert_key_index(self.len, key);
+        self.set_len(self.len + 1);
     }
 
-    // Replaces as existing entry, or if one is not present, inserts a new one.
-    pub fn replace(&mut self, key: &AccountHash, value: U512) {
-        if self.get(key).is_some() {
-            self.set_value_to_key(key, Some(value));
-            return;
-        }
-        self.insert(key, value);
+    // // Public method for adding new entry to the Bids. If key already exists, does nothing.
+    // pub fn insert(&mut self, key: &AccountHash, value: U512, synthetic: bool) {
+    //     if self.get(key).is_none() {
+    //         self.raw_insert(key, value, synthetic);
+    //     }
+    // }
+
+    pub fn replace(&mut self, key: &AccountHash, value: U512, synthetic: bool) {
+        self.insert_key_value(key, Some((value, synthetic)));
     }
 
-    // Switch key at index. Can also replace value at that key.
-    pub fn replace_index(&mut self, index: u64, key: &AccountHash, value: Option<U512>) {
-        if self.nth(index).is_some() {
-            self.set_key_to_index(index, key);
-            if let Some(v) = value {
-                self.set_value_to_key(key, Some(v))
-            }
-            return;
-        }
-        if let Some(value) = value {
-            self.insert(key, value);
-        }
-    }
+    // // Replaces as existing entry, or if one is not present, inserts a new one.
+    // pub fn replace(&mut self, key: &AccountHash, value: U512, synthetic: bool) {
+    //     if self.get(key).is_some() {
+    //         self.insert_key_value(key, Some((value, synthetic)));
+    //         return;
+    //     }
+    //     self.insert(key, value, synthetic);
+    // }
+
+    // // Switch key at index. Can also replace value at that key.
+    // pub fn replace_index(&mut self, index: u64, key: &AccountHash, value: Option<U512>) {
+    //     if self.nth(index).is_some() {
+    //         self.set_key_to_index(index, key);
+    //         if let Some(v) = value {
+    //             self.set_value_to_key(key, Some(v))
+    //         }
+    //         return;
+    //     }
+    //     if let Some(value) = value {
+    //         self.insert(key, value);
+    //     }
+    // }
 
     // If an index is associated to the key, calls `remove_by_index`, and in case an index is not present still tries to remove the value at the key.
     pub fn remove_by_key(&mut self, key: &AccountHash) {
@@ -123,7 +131,7 @@ impl Bids {
             }
             None => {
                 if self.get(key).is_some() {
-                    self.set_value_to_key(key, Option::<U512>::None);
+                    self.insert_key_value(key, Option::<(U512, bool)>::None);
                 }
             }
         }
@@ -141,8 +149,8 @@ impl Bids {
                 }
                 core::cmp::Ordering::Greater => {
                     if let Some(last_key) = self.get_key_by_index(self.len - 1) {
-                        self.set_key_to_index(index, &last_key);
-                        self.set_key_to_index(self.len - 1, &key);
+                        self.insert_key_index(index, &last_key);
+                        self.insert_key_index(self.len - 1, &key);
                     }
                     self.pop();
                 }
@@ -152,7 +160,7 @@ impl Bids {
     }
 
     // Removes and returns the data and key at the last index from the dictionary.
-    pub fn pop(&mut self) -> Option<(AccountHash, U512)> {
+    pub fn pop(&mut self) -> Option<(AccountHash, (U512, bool))> {
         let index = self.len - 1;
         if let Some(key) = self.get_key_by_index(index) {
             if let Some(value) = self.get(&key) {
@@ -162,7 +170,7 @@ impl Bids {
                     Option::<AccountHash>::None,
                 );
                 storage::dictionary_put(self.index_uref, &key.to_string(), Option::<u64>::None);
-                self.set_value_to_key(&key, Option::<U512>::None);
+                self.insert_key_value(&key, Option::<(U512, bool)>::None);
                 self.set_len(index);
                 return Some((key, value));
             }
@@ -178,11 +186,11 @@ impl Bids {
         self.len == 0
     }
 
-    fn set_value_to_key(&self, key: &AccountHash, value: Option<U512>) {
+    fn insert_key_value(&self, key: &AccountHash, value: Option<(U512, bool)>) {
         storage::dictionary_put(self.key_uref, &key.to_string(), value);
     }
 
-    fn set_key_to_index(&self, index: u64, key: &AccountHash) {
+    fn insert_key_index(&self, index: u64, key: &AccountHash) {
         storage::dictionary_put(self.index_uref, &index.to_string(), Some(*key));
         storage::dictionary_put(self.index_uref, &key.to_string(), Some(index));
     }
@@ -192,8 +200,8 @@ impl Bids {
         self.len = length;
     }
 
-    pub fn to_map(&self) -> BTreeMap<AccountHash, U512> {
-        let mut ret = BTreeMap::new();
+    pub fn to_map(&self) -> BTreeMap<AccountHash, (U512, bool)> {
+        let mut ret: BTreeMap<AccountHash, (U512, bool)> = BTreeMap::new();
         for i in 0..self.len {
             let key = self
                 .get_key_by_index(i)
@@ -212,14 +220,14 @@ impl Bids {
         }
     }
 
-    pub fn max_by_key(&self) -> Option<(AccountHash, U512)> {
+    pub fn max_by_key(&self) -> (Option<AccountHash>, Option<U512>, bool) {
         if !self.is_empty() {
             let mut max_key = self
                 .get_key_by_index(0)
                 .unwrap_or_revert_with(AuctionError::DictionaryGetNoValueGetByIndex);
             let mut max_value = self
                 .get(&max_key)
-                .unwrap_or_revert_with(AuctionError::DictionaryGetFailBidsGet);
+                .unwrap_or_default();
             for i in 1..self.len {
                 let key = self
                     .get_key_by_index(i)
@@ -227,24 +235,24 @@ impl Bids {
                 let value = self
                     .get(&key)
                     .unwrap_or_revert_with(AuctionError::DictionaryGetFailBidsGet);
-                if value > max_value {
+                if value.0 > max_value.0 {
                     max_key = key;
                     max_value = value;
                 }
             }
-            return Some((max_key, max_value));
+            return (Some(max_key), Some(max_value.0), max_value.1);
         }
-        None
+        (None, None, false)
     }
 
     /// Returns the account hash of the lowest bidder if the new bid is higher
-    pub fn get_spot(&self, new_item: U512) -> Option<(AccountHash, U512)> {
+    pub fn get_lowest_bid(&self, new_item: &U512) -> Option<(AccountHash, (U512, bool))> {
         let mut bidders = Vec::from_iter(self.to_map());
         bidders.sort_by(|&(_, a), &(_, b)| b.cmp(&a));
         let (lowest_bidder, lowest_bid) = bidders
             .pop()
             .unwrap_or_revert_with(AuctionError::UnreachableDeadEnd);
-        if lowest_bid < new_item {
+        if lowest_bid.0 < *new_item {
             Some((lowest_bidder, lowest_bid))
         } else {
             None

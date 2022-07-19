@@ -2,33 +2,63 @@
 #![no_main]
 
 extern crate alloc;
-use alloc::{boxed::Box, format, string::String, vec};
+
+use alloc::{format, string::String, vec};
+
 use casper_contract::{
     contract_api::{
-        runtime::{self, get_caller},
+        runtime,
         storage, system,
     },
     unwrap_or_revert::UnwrapOrRevert,
 };
-use casper_private_auction_core::{auction::Auction, bids::Bids, data, AuctionLogic, keys, accounts, functions, constructors};
-use casper_types::{
-    runtime_args, ApiError, CLType, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess,
-    EntryPointType, EntryPoints, Key, Parameter, RuntimeArgs,
-};
+use casper_types::{ApiError, CLType, ContractPackageHash, EntryPoint, EntryPointAccess, EntryPoints, EntryPointType, Key, Parameter, runtime_args, RuntimeArgs, URef};
+
+use casper_private_auction_core::{accounts, auction::Auction, bids::Bids, constructors, functions, keys};
+use casper_private_auction_core::data::AuctionData;
+use casper_private_auction_core::error::AuctionError;
+use casper_private_auction_core::swap::Swap;
 
 #[no_mangle]
 pub extern "C" fn bid() {
-    Auction::auction_bid();
+    // Standard bids have to be done via session code
+    if runtime::get_call_stack().len() != 2 {
+        runtime::revert(AuctionError::DisallowedMiddleware);
+    }
+
+    Auction::check_valid();
+    // Get the caller from the stack
+    let account = AuctionData::current_bidder();
+    Auction::verify(&account);
+
+    let bidder_purse = runtime::get_named_arg::<URef>(keys::BID_PURSE);
+
+    // Place the bid
+    Swap::bid(account, Some(bidder_purse));
 }
 
 #[no_mangle]
 pub extern "C" fn synthetic_bid() {
-    Auction::auction_synthetic_bid();
+    Auction::check_valid();
+
+    // All the details are passed in
+    let account = runtime::get_named_arg::<Key>(keys::BIDDER);
+    Auction::verify(&account);
+
+    // Only admin is allowed to call this
+    Auction::check_admin();
+
+    Swap::bid(account, Option::None);
 }
 
 #[no_mangle]
 pub extern "C" fn cancel_auction() {
-    Auction::cancel_auction();
+    Auction::check_valid();
+
+    // Only owner is allowed to cancel
+    Auction::check_owner();
+
+    Swap::cancel();
 }
 
 #[no_mangle]
@@ -114,8 +144,8 @@ pub fn get_entry_points() -> EntryPoints {
 pub extern "C" fn call() {
     let entry_points = get_entry_points();
     let auction_named_keys = constructors::create_swap_named_keys(
-        Option::Some(accounts::MARKETPLACE_ACCOUNT),
-        Option::Some(accounts::MARKETPLACE_COMMISSION),
+        Option::Some(accounts::MARKETPLACE_ACCOUNT.into()),
+        Option::Some(accounts::MARKETPLACE_COMMISSION.into()),
     );
     let auction_desig: String = runtime::get_named_arg("name");
     let (auction_hash, _) = storage::new_locked_contract(
@@ -139,7 +169,7 @@ pub extern "C" fn call() {
 
     // Hash of the NFT contract put up for auction
     let token_contract_hash = ContractPackageHash::new(
-        runtime::get_named_arg::<Key>(keys::NFT_HASH)
+        runtime::get_named_arg::<Key>(keys::TOKEN_PACKAGE_HASH)
             .into_hash()
             .unwrap_or_revert_with(ApiError::User(200)),
     );

@@ -59,6 +59,7 @@ pub enum AuctionError {
     AuctionPurseNotAddable = 55,
     MissingCommissions = 56,
     MissingTokenPackageHash = 57,
+    SyntheticBidNotAllowed = 58,
 }
 
 impl From<AuctionError> for ApiError {

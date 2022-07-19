@@ -10,25 +10,56 @@ use casper_contract::{
     },
     unwrap_or_revert::UnwrapOrRevert,
 };
-use casper_private_auction_core::{auction::Auction, bids::Bids, data, AuctionLogic, keys, accounts, functions, constructors};
-use casper_types::{
-    runtime_args, ApiError, CLType, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess,
-    EntryPointType, EntryPoints, Key, Parameter, RuntimeArgs,
-};
+use casper_private_auction_core::{auction::Auction, bids::Bids, data, keys, accounts, functions, constructors};
+use casper_types::{runtime_args, ApiError, CLType, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, Key, Parameter, RuntimeArgs, U512, URef};
+use casper_private_auction_core::data::AuctionData;
+use casper_private_auction_core::dutch::DutchAuction;
+use casper_private_auction_core::error::AuctionError;
 
 #[no_mangle]
 pub extern "C" fn bid() {
-    Auction::auction_bid();
+    // Standard bids have to be done via session code
+    if runtime::get_call_stack().len() != 2 {
+        runtime::revert(AuctionError::DisallowedMiddleware);
+    }
+
+    Auction::check_valid();
+    // Get the caller from the stack
+    let account = AuctionData::current_bidder();
+    Auction::verify(&account);
+
+    // Only bid is passed in
+    let bid = runtime::get_named_arg::<U512>(keys::BID);
+    let bidder_purse = runtime::get_named_arg::<URef>(keys::BID_PURSE);
+
+    // Place the bid
+    DutchAuction::bid(account, bid, Some(bidder_purse));
 }
 
 #[no_mangle]
 pub extern "C" fn synthetic_bid() {
-    Auction::auction_synthetic_bid();
+    Auction::check_valid();
+
+    // All the details are passed in
+    let account = runtime::get_named_arg::<Key>(keys::BIDDER);
+    Auction::verify(&account);
+
+    // Only admin is allowed to call this
+    Auction::check_admin();
+
+    let bid = runtime::get_named_arg::<U512>(keys::BID);
+
+    DutchAuction::bid(account, bid, Option::<URef>::None);
 }
 
 #[no_mangle]
 pub extern "C" fn cancel_auction() {
-    Auction::cancel_auction();
+    Auction::check_valid();
+
+    // Only owner is allowed to cancel
+    Auction::check_owner();
+
+    DutchAuction::cancel();
 }
 
 #[no_mangle]
@@ -114,8 +145,8 @@ pub fn get_entry_points() -> EntryPoints {
 pub extern "C" fn call() {
     let entry_points = get_entry_points();
     let auction_named_keys = constructors::create_dutch_auction_named_keys(
-        Option::Some(accounts::MARKETPLACE_ACCOUNT),
-        Option::Some(accounts::MARKETPLACE_COMMISSION),
+        Option::Some(accounts::MARKETPLACE_ACCOUNT.into()),
+        Option::Some(accounts::MARKETPLACE_COMMISSION.into()),
     );
     let auction_desig: String = runtime::get_named_arg("name");
     let (auction_hash, _) = storage::new_locked_contract(
@@ -139,7 +170,7 @@ pub extern "C" fn call() {
 
     // Hash of the NFT contract put up for auction
     let token_contract_hash = ContractPackageHash::new(
-        runtime::get_named_arg::<Key>(keys::NFT_HASH)
+        runtime::get_named_arg::<Key>(keys::TOKEN_PACKAGE_HASH)
             .into_hash()
             .unwrap_or_revert_with(ApiError::User(200)),
     );
