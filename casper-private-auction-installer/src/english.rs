@@ -2,16 +2,19 @@
 #![no_main]
 
 extern crate alloc;
-use alloc::{boxed::Box, format, string::String, vec};
+
+use alloc::{format, string::String, vec};
+
 use casper_contract::{
     contract_api::{
-        runtime::{self, get_caller},
+        runtime,
         storage, system,
     },
     unwrap_or_revert::UnwrapOrRevert,
 };
-use casper_private_auction_core::{auction::Auction, bids::Bids, data, keys, accounts, functions, constructors};
-use casper_types::{runtime_args, ApiError, CLType, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, Key, Parameter, RuntimeArgs, U512, URef};
+use casper_types::{ApiError, CLType, ContractPackageHash, EntryPoint, EntryPointAccess, EntryPoints, EntryPointType, Key, Parameter, runtime_args, RuntimeArgs, U512, URef};
+
+use casper_private_auction_core::{accounts, auction::Auction, bids::Bids, constructors, functions, keys};
 use casper_private_auction_core::data::AuctionData;
 use casper_private_auction_core::english::EnglishAuction;
 use casper_private_auction_core::error::AuctionError;
@@ -212,7 +215,7 @@ pub extern "C" fn call() {
         Option::Some(accounts::MARKETPLACE_ACCOUNT.into()),
         Option::Some(accounts::MARKETPLACE_COMMISSION.into()),
     );
-    let auction_desig: String = runtime::get_named_arg("name");
+    let auction_desig: String = runtime::get_named_arg(keys::NAME);
     let (auction_hash, _) = storage::new_locked_contract(
         entry_points,
         Some(auction_named_keys),

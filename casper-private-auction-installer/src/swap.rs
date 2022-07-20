@@ -147,7 +147,7 @@ pub extern "C" fn call() {
         Option::Some(accounts::MARKETPLACE_ACCOUNT.into()),
         Option::Some(accounts::MARKETPLACE_COMMISSION.into()),
     );
-    let auction_desig: String = runtime::get_named_arg("name");
+    let auction_desig: String = runtime::get_named_arg(keys::NAME);
     let (auction_hash, _) = storage::new_locked_contract(
         entry_points,
         Some(auction_named_keys),

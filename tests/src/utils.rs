@@ -1,12 +1,10 @@
 use std::path::PathBuf;
 
 use casper_engine_test_support::{
-    DeployItemBuilder, ExecuteRequestBuilder, InMemoryWasmTestBuilder, WasmTestBuilder, ARG_AMOUNT,
+    DeployItemBuilder, ExecuteRequestBuilder, InMemoryWasmTestBuilder, ARG_AMOUNT,
     DEFAULT_ACCOUNT_ADDR, DEFAULT_PAYMENT,
 };
-use casper_execution_engine::{
-    core::engine_state::ExecuteRequest, storage::global_state::in_memory::InMemoryGlobalState,
-};
+use casper_execution_engine::core::engine_state::ExecuteRequest;
 use casper_types::{
     account::AccountHash, bytesrepr::FromBytes, runtime_args, system::mint, CLTyped, ContractHash,
     ContractPackageHash, Key, RuntimeArgs, StoredValue, U512,
@@ -140,4 +138,12 @@ pub fn query_dictionary_item(
         _ => return Err("Unsupported key type for a query to a dictionary item".to_string()),
     };
     builder.query(None, address, &empty_path)
+}
+
+pub fn get_now_u64() -> u64 {
+    use std::time::SystemTime;
+    match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(n) => n.as_millis() as u64,
+        Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+    }
 }

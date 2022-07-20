@@ -34,6 +34,7 @@ pub const AUCTION_TIMER_EXTENSION: &str = "auction_timer_extension";
 pub const MINIMUM_BID_STEP: &str = "minimum_bid_step";
 pub const MARKETPLACE_COMMISSION: &str = "marketplace_commission";
 pub const MARKETPLACE_ACCOUNT: &str = "marketplace_account";
+pub const NAME: &str = "name";
 
 // TODO: This needs A LOT of error handling because we don't want an auction being left in an unrecoverable state if the named keys are bad!
 pub fn read_named_key_uref(name: &str) -> URef {
