@@ -65,7 +65,6 @@ impl AuctionContract {
         let bob_secret = SecretKey::ed25519_from_bytes([5u8; 32]).unwrap();
         let dan_secret = SecretKey::ed25519_from_bytes([7u8; 32]).unwrap();
 
-
         let admin_pk: PublicKey = PublicKey::from(&admin_secret);
         let admin = admin_pk.to_account_hash();
         let ali_pk: PublicKey = PublicKey::from(&ali_secret);
@@ -117,8 +116,9 @@ impl AuctionContract {
         auction_args.set_synth_package_hash(&synth_package);
         auction_args.set_token_id(&token_id);
 
-        let (auction_hash, auction_package) =
-            Self::deploy_auction(auction_args.get_wasm(), &mut builder, &admin, auction_args.build());
+         let (auction_hash, auction_package) =
+             Self::deploy_auction(auction_args.get_wasm(), &mut builder, &admin, auction_args.build());
+
         Self {
             builder,
             auction_hash,
@@ -218,8 +218,8 @@ impl AuctionContract {
         kyc_package_hash: ContractPackageHash,
     ) -> (ContractHash, ContractPackageHash) {
         let token_args = runtime_args! {
-            "name" => "DragonsNFT",
-            "symbol" => "DRAG",
+            "name" => "token",
+            "symbol" => "TK",
             "meta" => btreemap! {
                 "origin".to_string() => "fire".to_string()
             },
@@ -257,10 +257,11 @@ impl AuctionContract {
         auction_args: RuntimeArgs,
     ) -> (ContractHash, ContractPackageHash) {
         let auction_code = PathBuf::from(wasm);
+        let deploy_code = DeploySource::Code(auction_code);
         deploy(
             builder,
             admin,
-            &DeploySource::Code(auction_code),
+            &deploy_code,
             auction_args,
             true,
             None,
@@ -307,10 +308,6 @@ impl AuctionContract {
         sender: &AccountHash,
         mut commissions: BTreeMap<String, String>,
     ) {
-        let mut gauge: BTreeMap<String, String> = BTreeMap::new();
-        gauge.insert("gauge".to_string(), "is_gaugy".to_string());
-        let mut warehouse: BTreeMap<String, String> = BTreeMap::new();
-        warehouse.insert("ware".to_string(), "house".to_string());
         commissions.insert(
             "comm_account".to_string(),
             "Key::Account(7de52a3013f609faa38ae99af4350da6aa6b69bec0e4087ecae87c2b9486a265)"
@@ -321,8 +318,6 @@ impl AuctionContract {
             "recipient" => *recipient,
             "token_ids" => Some(vec![token_id.to_string()]),
             "token_metas" => vec![token_meta.clone()],
-            "token_gauges" => vec![gauge],
-            "token_warehouses" => vec![warehouse],
             "token_commissions" => vec![commissions],
         };
         deploy(

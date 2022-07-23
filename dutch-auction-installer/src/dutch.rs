@@ -144,6 +144,10 @@ pub fn get_entry_points() -> EntryPoints {
     entry_points
 }
 
+/**
+Install a Dutch auction, requires parameters:
+
+ */
 #[no_mangle]
 pub extern "C" fn call() {
     let entry_points = get_entry_points();

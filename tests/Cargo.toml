@@ -7,10 +7,10 @@ edition = "2018"
 
 [dependencies]
 casper-private-auction-core = { path = "../casper-private-auction-core" }
-casper-contract = "1.4.3"
-casper-engine-test-support = { version = "2.0.3", features = ["test-support"] }
-casper-execution-engine = "1.4.2"
-casper-types = "1.4.6"
+casper-contract = "1.4.4"
+casper-engine-test-support = { version = "2.2.0", features = ["test-support"] }
+casper-execution-engine = "2.0.0"
+casper-types = "1.5.0"
 maplit = "*"
 hex = "*"
 rand = "*"

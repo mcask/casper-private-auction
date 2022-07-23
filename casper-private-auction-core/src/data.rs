@@ -123,8 +123,8 @@ impl AuctionData {
         read_named_key_value::<u64>(keys::END)
     }
 
-    pub fn cancel_time() -> u64 {
-        read_named_key_value::<u64>(keys::CANCEL)
+    pub fn cancel_time() -> Option<u64> {
+        read_named_key_value::<Option<u64>>(keys::CANCEL)
     }
 
     pub fn auction_purse() -> URef {
@@ -174,14 +174,13 @@ impl AuctionData {
         )
     }
 
-    pub fn load_commissions(token_id: &String, token_package_hash: &ContractPackageHash) -> BTreeMap<String, String>{
-        runtime::call_versioned_contract::<BTreeMap<String, String>>(
+    pub fn load_commissions(token_id: &String, token_package_hash: &ContractPackageHash) -> Option<BTreeMap<String, String>>{
+        runtime::call_versioned_contract::<Option<BTreeMap<String, String>>>(
             token_package_hash.clone(),
             None,
             "token_commission",
             runtime_args! {
                 "token_id" => token_id.to_string(),
-                "property" => "".to_string(),
             },
         )
     }
@@ -189,7 +188,8 @@ impl AuctionData {
     pub fn compute_commissions() -> BTreeMap<AccountHash, u16> {
         let token_id = Self::token_id();
         let token_package_hash = Self::token_package_hash();
-        let commissions = Self::load_commissions(&token_id, &token_package_hash);
+        let commissions = Self::load_commissions(&token_id, &token_package_hash)
+            .unwrap_or_revert_with(AuctionError::MissingCommissions);
 
         let mut converted_commissions: BTreeMap<AccountHash, u16> = BTreeMap::new();
         let mut done: BTreeSet<String> = BTreeSet::new();

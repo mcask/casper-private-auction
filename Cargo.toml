@@ -2,7 +2,9 @@
 
 members = [
     "casper-private-auction-core",
-    "casper-private-auction-installer",
+    "english-auction-installer",
+    "dutch-auction-installer",
+    "swap-installer",
     "bid-purse",
     "tests"
 ]

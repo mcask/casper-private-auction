@@ -19,17 +19,28 @@ macro_rules! named_keys {
     };
 }
 
-fn get_cancellable_times() -> (u64, u64, u64) {
+fn get_cancellable_times() -> (u64, Option<u64>, u64) {
     let start: u64 = runtime::get_named_arg(keys::START);
-    let cancel: u64 = runtime::get_named_arg(keys::CANCEL);
+    let cancel = runtime::get_named_arg::<Option<u64>>(keys::CANCEL);
     let end: u64 = runtime::get_named_arg(keys::END);
+
+    if cancel.is_some() {
+        let cts = cancel.unwrap();
+        if u64::from(runtime::get_blocktime()) <= start
+            && start <= cts
+            && cts <= end
+            && start < end
+        {
+            return (start, cancel, end);
+        }
+    }
+
     if u64::from(runtime::get_blocktime()) <= start
-        && start <= cancel
-        && cancel <= end
         && start < end
     {
         return (start, cancel, end);
     }
+
     runtime::revert(AuctionError::InvalidTimes)
 }
 
@@ -45,16 +56,23 @@ fn get_fixed_times() -> (u64, u64) {
 }
 
 fn validate_commissions(token_id: &String, token_package_hash: &ContractPackageHash) {
-    let commissions = AuctionData::load_commissions(&token_id, &token_package_hash);
+    let commissions = AuctionData::load_commissions(&token_id, &token_package_hash)
+        .unwrap_or_revert_with(AuctionError::MissingCommissions);
 
     let mut share_sum = 0;
     for (key, value) in &commissions {
-        let property = key.split('_').next();
+        let mut split = key.split('_');
+        let _actor = split
+            .next()
+            .unwrap_or_revert_with(AuctionError::CommissionActorSplit);
+        let property = split
+            .next()
+            .unwrap_or_revert_with(AuctionError::CommissionPropertySplit);
         match property {
-            Some("account") => {
+            "account" => {
                 utils::string_to_account_hash(value);
             },
-            Some("rate") => {
+            "rate" => {
                 share_sum += utils::string_to_u16(value);
             }
             _ => revert(AuctionError::InvalidcommissionProperty),
@@ -120,7 +138,7 @@ pub fn create_english_auction_named_keys(ma: Option<String>, mc: Option<u32>) ->
     // Prices
     let reserve_price = runtime::get_named_arg::<U512>(keys::RESERVE_PRICE);
     // Times
-    let (start_time, cancellation_time, end_time): (u64, u64, u64) = get_cancellable_times();
+    let (start_time, cancellation_time, end_time) = get_cancellable_times();
 
     // Starting state
     let winning_bid: Option<U512> = None;

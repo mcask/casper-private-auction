@@ -1,5 +1,5 @@
 prepare:
-	rustup default nightly
+	rustup default nightly-2022-05-19
 	rustup target add wasm32-unknown-unknown
 
 rust-test-only:
@@ -22,7 +22,10 @@ format:
 lint: clippy format
 
 build-contract:
-	cargo build --release -p casper-private-auction-installer -p bid-purse --target wasm32-unknown-unknown
+	cargo build --release -p bid-purse --target wasm32-unknown-unknown
+	cargo build --release -p dutch-auction-installer --target wasm32-unknown-unknown
+	cargo build --release -p english-auction-installer --target wasm32-unknown-unknown
+	cargo build --release -p swap-installer --target wasm32-unknown-unknown
 	wasm-strip target/wasm32-unknown-unknown/release/dutch-auction-installer.wasm
 	wasm-strip target/wasm32-unknown-unknown/release/english-auction-installer.wasm
 	wasm-strip target/wasm32-unknown-unknown/release/swap-installer.wasm

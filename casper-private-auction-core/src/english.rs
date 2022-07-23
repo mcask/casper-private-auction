@@ -85,8 +85,11 @@ impl EnglishAuction {
         Auction::check_valid();
 
         // In addition - check we are within the cancel time
-        if u64::from(runtime::get_blocktime()) >= AuctionData::cancel_time() {
-            runtime::revert(AuctionError::LateCancellation)
+        let cancel_time = AuctionData::cancel_time();
+        if cancel_time.is_some() {
+            if u64::from(runtime::get_blocktime()) >= cancel_time.unwrap() {
+                runtime::revert(AuctionError::LateCancellation)
+            }
         }
     }
 
