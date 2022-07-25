@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use casper_types::{
     account::AccountHash, U512
 };
@@ -16,6 +14,7 @@ impl DutchAuctionContract {
     pub fn deploy_with_default_args(start_time: u64) -> Self {
         let mut auction_args = AuctionArgBuilder::default();
         auction_args.set_start_time(start_time);
+        auction_args.set_end_time(start_time + 5000);
         let contract = AuctionContract::deploy(&mut auction_args);
         Self {
             contract
@@ -47,37 +46,5 @@ impl DutchAuctionContract {
 
     pub fn reject(&mut self, caller: &AccountHash, time: u64) {
         self.contract.reject(caller, time)
-    }
-
-    pub fn get_end(&self) -> u64 {
-        self.contract.get_end()
-    }
-
-    pub fn get_current_winner(&self) -> (Option<AccountHash>, Option<(U512, bool)>) {
-        self.contract.get_current_winner()
-    }
-
-    pub fn get_event(&self, contract_hash: [u8; 32], index: u32) -> BTreeMap<String, String> {
-        self.contract.get_event(contract_hash, index)
-    }
-
-    pub fn get_events(&self, contract_hash: [u8; 32]) -> Vec<BTreeMap<String, String>> {
-        self.contract.get_events(contract_hash)
-    }
-
-    pub fn get_events_count(&self, contract_hash: [u8; 32]) -> u32 {
-        self.contract.get_events_count(contract_hash)
-    }
-
-    pub fn get_all_accounts_balance(&self) -> (U512, U512, U512) {
-        self.contract.get_all_accounts_balance()
-    }
-
-    pub fn get_marketplace_balance(&self) -> U512 {
-        self.contract.get_marketplace_balance()
-    }
-
-    pub fn get_comm_balance(&self) -> U512 {
-        self.contract.get_comm_balance()
     }
 }

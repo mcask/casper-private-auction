@@ -27,9 +27,9 @@ pub extern "C" fn call() {
         }
     };
     let delta =
-        match runtime::call_contract::<Option<U512>>(auction_contract, "get_bid", runtime_args! {})
+        match runtime::call_contract::<Option<(U512, bool)>>(auction_contract, "get_bid", runtime_args! {})
         {
-            Some(bid) => amount - bid,
+            Some(bid) => amount - bid.0,
             None => amount,
         };
     transfer_from_purse_to_purse(get_main_purse(), bidder_purse, delta, None).unwrap_or_revert();

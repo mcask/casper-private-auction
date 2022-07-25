@@ -5,11 +5,20 @@ use casper_engine_test_support::{
     DEFAULT_ACCOUNT_ADDR, DEFAULT_PAYMENT,
 };
 use casper_execution_engine::core::engine_state::ExecuteRequest;
-use casper_types::{
-    account::AccountHash, bytesrepr::FromBytes, runtime_args, system::mint, CLTyped, ContractHash,
-    ContractPackageHash, Key, RuntimeArgs, StoredValue, U512,
-};
+use casper_types::{account::AccountHash, bytesrepr::FromBytes, runtime_args, system::mint, CLTyped, ContractHash, ContractPackageHash, Key, RuntimeArgs, StoredValue, U512, SecretKey, PublicKey};
 use rand::Rng;
+
+pub fn base_account() -> AccountHash {
+    let key = SecretKey::ed25519_from_bytes([1u8; 32]).unwrap();
+    let pk = PublicKey::from(&key);
+    pk.to_account_hash()
+}
+
+pub fn create_account() -> AccountHash {
+    let key = SecretKey::ed25519_from_bytes(rand::thread_rng().gen::<[u8; 32]>()).unwrap();
+    let pk = PublicKey::from(&key);
+    pk.to_account_hash()
+}
 
 pub fn query<T: FromBytes + CLTyped>(
     builder: &InMemoryWasmTestBuilder,
@@ -32,11 +41,27 @@ pub fn fund_account(account: &AccountHash) -> ExecuteRequest {
         .with_authorization_keys(&[*DEFAULT_ACCOUNT_ADDR])
         .with_empty_payment_bytes(runtime_args! {ARG_AMOUNT => *DEFAULT_PAYMENT})
         .with_transfer_args(runtime_args! {
-            mint::ARG_AMOUNT => U512::from(30_000_000_000_000_u64),
+            mint::ARG_AMOUNT => U512::from(50_000_000_000_000_u64),
             mint::ARG_TARGET => *account,
             mint::ARG_ID => <Option::<u64>>::None
         })
-        .with_deploy_hash([1; 32])
+        .with_deploy_hash(rand::thread_rng().gen())
+        .build();
+
+    ExecuteRequestBuilder::from_deploy_item(deploy_item).build()
+}
+
+pub fn empty_account(account: &AccountHash) -> ExecuteRequest {
+    let deploy_item = DeployItemBuilder::new()
+        .with_address(*DEFAULT_ACCOUNT_ADDR)
+        .with_authorization_keys(&[*DEFAULT_ACCOUNT_ADDR])
+        .with_empty_payment_bytes(runtime_args! {ARG_AMOUNT => *DEFAULT_PAYMENT})
+        .with_transfer_args(runtime_args! {
+            mint::ARG_AMOUNT => U512::from(1_u64),
+            mint::ARG_TARGET => *account,
+            mint::ARG_ID => <Option::<u64>>::None
+        })
+        .with_deploy_hash(rand::thread_rng().gen())
         .build();
 
     ExecuteRequestBuilder::from_deploy_item(deploy_item).build()
@@ -62,13 +87,12 @@ pub fn deploy(
     success: bool,
     block_time: Option<u64>,
 ) {
-    let mut rng = rand::thread_rng();
     // let deploy_hash = rng.gen();
     let mut deploy_builder = DeployItemBuilder::new()
         .with_empty_payment_bytes(runtime_args! {ARG_AMOUNT => *DEFAULT_PAYMENT})
         .with_address(*deployer)
         .with_authorization_keys(&[*deployer])
-        .with_deploy_hash(rng.gen());
+        .with_deploy_hash(rand::thread_rng().gen());
 
     deploy_builder = match source {
         DeploySource::Code(path) => deploy_builder.with_session_code(path, args),

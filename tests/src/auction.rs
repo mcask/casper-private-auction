@@ -6,16 +6,17 @@ use casper_engine_test_support::{
 };
 use casper_types::{
     account::AccountHash, bytesrepr::FromBytes, CLTyped, ContractHash, ContractPackageHash,
-    Key, PublicKey, runtime_args, RuntimeArgs, SecretKey, U512,
+    Key, runtime_args, RuntimeArgs, U512,
 };
 use maplit::btreemap;
-
 use casper_private_auction_core::accounts::MARKETPLACE_ACCOUNT;
+
 use casper_private_auction_core::keys;
 
 use crate::{
     utils::{deploy, DeploySource, fund_account, query, query_dictionary_item},
 };
+use crate::utils::{create_account, empty_account};
 
 pub trait BaseAuctionArgs {
     fn build(&self) -> RuntimeArgs;
@@ -23,66 +24,56 @@ pub trait BaseAuctionArgs {
     fn set_cancel_time(&mut self, _time: Option<u64>) {
         // do-nothing
     }
+    fn set_end_time(&mut self, time: u64);
+    fn set_start_price(&mut self, _price: U512) {
+        // do nothing
+    }
+    fn set_swap_price(&mut self, _price: U512) {
+        // do nothing
+    }
+    fn set_reserve_price(&mut self, _price: U512) {
+        // do-nothing
+    }
     fn set_beneficiary(&mut self, account: &AccountHash);
     fn set_token_contract_hash(&mut self, hash: &ContractPackageHash);
     fn set_kyc_package_hash(&mut self, hash: &ContractPackageHash);
     fn set_synth_package_hash(&mut self, hash: &ContractPackageHash);
     fn set_token_id(&mut self, token_id: &String);
+    fn get_nft_commission(&self) -> u32;
     fn get_wasm(&self) -> String;
 }
 
 pub struct AuctionContract {
     pub builder: InMemoryWasmTestBuilder,
-    pub auction_hash: ContractHash,
-    pub auction_package: ContractPackageHash,
-    pub nft_hash: ContractHash,
-    pub nft_package: ContractPackageHash,
-    pub kyc_hash: ContractHash,
-    pub kyc_package: ContractPackageHash,
-    pub synth_hash: ContractHash,
-    pub synth_package: ContractPackageHash,
-    pub admin: AccountHash,
-    pub ali: AccountHash,
-    pub bob: AccountHash,
-    pub dan: AccountHash,
+    pub auction_contract: (ContractHash, ContractPackageHash),
+    pub nft: (ContractHash, ContractPackageHash),
+    pub kyc: (ContractHash, ContractPackageHash),
+    pub synth: (ContractHash, ContractPackageHash),
+    pub accounts: (AccountHash, AccountHash, AccountHash, AccountHash, AccountHash, AccountHash),
 }
 
 impl AuctionContract {
 
-    // pub fn deploy_with_default_args(start_time: u64) -> Self {
-    //     let mut auction_args = AuctionArgBuilder::default();
-    //     auction_args.set_start_time(start_time);
-    //     Self::deploy_contracts(auction_args)
-    // }
-    //
-    // pub fn deploy(mut auction_args: &impl BaseAuctionArgs) -> Self {
-    //     Self::deploy_contracts(auction_args)
-    // }
-
     pub fn deploy(auction_args: &mut impl BaseAuctionArgs) -> Self {
-        let admin_secret = SecretKey::ed25519_from_bytes([1u8; 32]).unwrap();
-        let ali_secret = SecretKey::ed25519_from_bytes([3u8; 32]).unwrap();
-        let bob_secret = SecretKey::ed25519_from_bytes([5u8; 32]).unwrap();
-        let dan_secret = SecretKey::ed25519_from_bytes([7u8; 32]).unwrap();
-
-        let admin_pk: PublicKey = PublicKey::from(&admin_secret);
-        let admin = admin_pk.to_account_hash();
-        let ali_pk: PublicKey = PublicKey::from(&ali_secret);
-        let ali = ali_pk.to_account_hash();
-        let bob_pk: PublicKey = PublicKey::from(&bob_secret);
-        let bob = bob_pk.to_account_hash();
-        let dan_pk: PublicKey = PublicKey::from(&dan_secret);
-        let dan = dan_pk.to_account_hash();
+        let admin = create_account();
+        let market = AccountHash::from_formatted_str(MARKETPLACE_ACCOUNT).unwrap();
+        let artist = create_account();
+        let ali = create_account();
+        let bob = create_account();
+        let dan = create_account();
 
         let mut builder = InMemoryWasmTestBuilder::default();
         builder.run_genesis(&DEFAULT_RUN_GENESIS_REQUEST).commit();
         builder.exec(fund_account(&admin)).expect_success().commit();
+        builder.exec(empty_account(&market)).expect_success().commit();
+        builder.exec(empty_account(&artist)).expect_success().commit();
         builder.exec(fund_account(&ali)).expect_success().commit();
         builder.exec(fund_account(&bob)).expect_success().commit();
         builder.exec(fund_account(&dan)).expect_success().commit();
 
         let (kyc_hash, kyc_package) = Self::deploy_kyc(&mut builder, &admin);
         Self::add_kyc(&mut builder, &kyc_package, &admin, &admin);
+        Self::add_kyc(&mut builder, &kyc_package, &admin, &artist);
         Self::add_kyc(&mut builder, &kyc_package, &admin, &ali);
         Self::add_kyc(&mut builder, &kyc_package, &admin, &bob);
         // No kyc for dan
@@ -99,7 +90,14 @@ impl AuctionContract {
         let token_meta = btreemap! {
             "origin".to_string() => "fire".to_string()
         };
-        let commissions = BTreeMap::new();
+
+        // Get the configured commissions
+        let com = auction_args.get_nft_commission();
+
+        let mut commissions = BTreeMap::new();
+        commissions.insert("artist_account".to_string(), artist.to_formatted_string());
+        commissions.insert("artist_rate".to_string(), com.to_string());
+
         Self::mint_nft(
             &mut builder,
             &nft_package,
@@ -116,23 +114,16 @@ impl AuctionContract {
         auction_args.set_synth_package_hash(&synth_package);
         auction_args.set_token_id(&token_id);
 
-         let (auction_hash, auction_package) =
-             Self::deploy_auction(auction_args.get_wasm(), &mut builder, &admin, auction_args.build());
+        let (auction_hash, auction_package) =
+            Self::deploy_auction(auction_args.get_wasm(), &mut builder, &admin, auction_args.build());
 
         Self {
             builder,
-            auction_hash,
-            auction_package,
-            nft_hash,
-            nft_package,
-            kyc_hash,
-            kyc_package,
-            synth_hash,
-            synth_package,
-            admin,
-            ali,
-            bob,
-            dan,
+            auction_contract: (auction_hash, auction_package),
+            nft: (nft_hash, nft_package),
+            kyc: (kyc_hash, kyc_package),
+            synth: (synth_hash, synth_package),
+            accounts: (admin, market, artist, ali, bob, dan),
         }
     }
 
@@ -306,14 +297,8 @@ impl AuctionContract {
         token_id: &str,
         token_meta: &BTreeMap<String, String>,
         sender: &AccountHash,
-        mut commissions: BTreeMap<String, String>,
+        commissions: BTreeMap<String, String>,
     ) {
-        commissions.insert(
-            "comm_account".to_string(),
-            "Key::Account(7de52a3013f609faa38ae99af4350da6aa6b69bec0e4087ecae87c2b9486a265)"
-                .to_string(),
-        );
-        commissions.insert("comm_rate".to_string(), "55".to_string());
         let args = runtime_args! {
             "recipient" => *recipient,
             "token_ids" => Some(vec![token_id.to_string()]),
@@ -392,39 +377,7 @@ impl AuctionContract {
             None,
         );
     }
-    //
-    // pub fn bid(&mut self, bidder: &AccountHash, bid: U512, block_time: u64) {
-    //     let session_code = PathBuf::from("bid-purse.wasm");
-    //     deploy(
-    //         &mut self.builder,
-    //         bidder,
-    //         &DeploySource::Code(session_code),
-    //         runtime_args! {
-    //             "amount" => bid,
-    //             "purse_name" => "my_auction_purse",
-    //             "auction_contract" => self.auction_hash
-    //         },
-    //         true,
-    //         Some(block_time),
-    //     );
-    // }
-    //
-    // pub fn extend_bid(&mut self, bidder: &AccountHash, bid: U512, block_time: u64) {
-    //     let session_code = PathBuf::from("extend-bid-purse.wasm");
-    //     deploy(
-    //         &mut self.builder,
-    //         bidder,
-    //         &DeploySource::Code(session_code),
-    //         runtime_args! {
-    //             "amount" => bid,
-    //             "purse_name" => "my_auction_purse",
-    //             "auction_contract" => self.auction_hash
-    //         },
-    //         true,
-    //         Some(block_time),
-    //     );
-    // }
-    //
+
     pub fn bid(&mut self, bidder: &AccountHash, bid: U512, block_time: u64) {
         let session_code = PathBuf::from("delta-bid-purse.wasm");
         deploy(
@@ -434,7 +387,7 @@ impl AuctionContract {
             runtime_args! {
                 "amount" => bid,
                 "purse_name" => "my_auction_purse",
-                "auction_contract" => self.auction_hash
+                "auction_contract" => self.auction_contract.0
             },
             true,
             Some(block_time),
@@ -452,10 +405,6 @@ impl AuctionContract {
         self.call(caller, "cancel_auction", runtime_args! {}, time)
     }
 
-    // pub fn cancel_bid(&mut self, caller: &AccountHash, time: u64) {
-    //     self.call(caller, "cancel_bid", runtime_args! {}, time)
-    // }
-    //
     pub fn approve(&mut self, caller: &AccountHash, time: u64) {
         self.call(caller, "approve", runtime_args! {}, time)
     }
@@ -463,51 +412,62 @@ impl AuctionContract {
     pub fn reject(&mut self, caller: &AccountHash, time: u64) {
         self.call(caller, "reject", runtime_args! {}, time)
     }
-    //
-    // pub fn is_finalized(&self) -> bool {
-    //     self.query_contract(self.auction_hash.value(), "finalized")
-    // }
-    //
+
+    /// Observers
+    pub fn is_live(&self) -> bool {
+        let status: u8 = self.query_auction_contract(keys::STATUS);
+        status == casper_private_auction_core::data::AUCTION_LIVE
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        let status: u8 = self.query_auction_contract(keys::STATUS);
+        status == casper_private_auction_core::data::AUCTION_CANCELLED
+    }
+
+    pub fn is_pending_settle(&self) -> bool {
+        let status: u8 = self.query_auction_contract(keys::STATUS);
+        status == casper_private_auction_core::data::AUCTION_PENDING_SETTLE
+    }
+
+    pub fn is_rejected(&self) -> bool {
+        let status: u8 = self.query_auction_contract(keys::STATUS);
+        status == casper_private_auction_core::data::AUCTION_REJECTED
+    }
+
+    pub fn is_settled(&self) -> bool {
+        let status: u8 = self.query_auction_contract(keys::STATUS);
+        status == casper_private_auction_core::data::AUCTION_SETTLED
+    }
+
     pub fn get_end(&self) -> u64 {
-        self.query_contract(self.auction_hash.value(), keys::END)
+        self.query_auction_contract(keys::END)
     }
 
     pub fn get_current_winner(&self) -> (Option<AccountHash>, Option<(U512, bool)>) {
-        let winner: Option<AccountHash> = self.query_contract(self.auction_hash.value(), keys::CURRENT_WINNER);
-        let bid: Option<(U512, bool)> = self.query_contract(self.auction_hash.value(), keys::WINNING_BID);
+        let winner: Option<AccountHash> = self.query_auction_contract(keys::CURRENT_WINNER);
+        let bid: Option<(U512, bool)> = self.query_auction_contract(keys::WINNING_BID);
         (winner, bid)
     }
 
-    pub fn get_event(&self, contract_hash: [u8; 32], index: u32) -> BTreeMap<String, String> {
+    pub fn get_event(&self, index: u32) -> BTreeMap<String, String> {
         self.query_dictionary_value(
-            Key::Hash(contract_hash),
-            if contract_hash != self.auction_hash.value() {
-                "events"
-            } else {
-                "auction_events"
-            },
+            Key::Hash(self.auction_contract.0.value()),
+            "auction_events",
             index.to_string(),
         )
-        .unwrap()
+            .unwrap()
     }
 
-    pub fn get_events(&self, contract_hash: [u8; 32]) -> Vec<BTreeMap<String, String>> {
+    pub fn get_events(&self) -> Vec<BTreeMap<String, String>> {
         let mut events = Vec::new();
-        for i in 0..self.get_events_count(contract_hash) {
-            events.push(self.get_event(contract_hash, i));
+        for i in 0..self.get_events_count() {
+            events.push(self.get_event( i));
         }
         events
     }
 
-    pub fn get_events_count(&self, contract_hash: [u8; 32]) -> u32 {
-        self.query_contract(
-            contract_hash,
-            if contract_hash != self.auction_hash.value() {
-                "events_count"
-            } else {
-                "auction_events_count"
-            },
-        )
+    pub fn get_events_count(&self) -> u32 {
+        self.query_auction_contract("auction_events_count")
     }
 
     /// Wrapper function for calling an entrypoint on the contract with the access rights of the deployer.
@@ -516,7 +476,7 @@ impl AuctionContract {
             &mut self.builder,
             caller,
             &DeploySource::ByPackageHash {
-                package_hash: self.auction_package,
+                package_hash: self.auction_contract.1,
                 method: method.to_string(),
             },
             args,
@@ -540,16 +500,12 @@ impl AuctionContract {
             .expect("Wrong type in query result.")
     }
 
-    fn query_contract<T: CLTyped + FromBytes>(&self, contract_hash: [u8; 32], name: &str) -> T {
+    fn query_auction_contract<T: CLTyped + FromBytes>(&self, name: &str) -> T {
         query(
             &self.builder,
-            Key::Account(self.admin),
+            Key::Account(self.accounts.0),
             &[
-                if contract_hash != self.auction_hash.value() {
-                    "DragonsNFT_contract".to_string()
-                } else {
-                    "test_auction_contract_hash".to_string()
-                },
+                "test_auction_contract_hash".to_string(),
                 name.to_string(),
             ],
         )
@@ -564,30 +520,13 @@ impl AuctionContract {
         self.builder.get_purse_balance(account.main_purse())
     }
 
-    /// Shorthand to get the balances of all 3 accounts in order.
-    pub fn get_all_accounts_balance(&self) -> (U512, U512, U512) {
-        (
-            self.get_account_balance(&self.admin),
-            self.get_account_balance(&self.ali),
-            self.get_account_balance(&self.bob),
-        )
-    }
-
-    pub fn get_marketplace_balance(&self) -> U512 {
-        let marketplace_account = AccountHash::from_formatted_str(MARKETPLACE_ACCOUNT).unwrap();
-        let account = self
-            .builder
-            .get_account(marketplace_account)
-            .expect("should get genesis account");
-        self.builder.get_purse_balance(account.main_purse())
-    }
-
-    pub fn get_comm_balance(&self) -> U512 {
-        let marketplace_account = AccountHash::from_formatted_str(MARKETPLACE_ACCOUNT).unwrap();
-        let account = self
-            .builder
-            .get_account(marketplace_account)
-            .expect("should get genesis account");
-        self.builder.get_purse_balance(account.main_purse())
+    pub fn get_balances(&self) -> (U512, U512, U512, U512, U512, U512) {
+        let admin = self.get_account_balance(&self.accounts.0);
+        let market = self.get_account_balance(&self.accounts.1);
+        let artist = self.get_account_balance(&self.accounts.2);
+        let ali = self.get_account_balance(&self.accounts.3);
+        let bob = self.get_account_balance(&self.accounts.4);
+        let dan = self.get_account_balance(&self.accounts.5);
+        (admin, market, artist, ali, bob, dan)
     }
 }

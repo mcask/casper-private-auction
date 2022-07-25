@@ -3,8 +3,7 @@ use casper_contract::contract_api::runtime;
 use casper_contract::contract_api::storage;
 use casper_contract::contract_api::runtime::revert;
 use casper_contract::unwrap_or_revert::UnwrapOrRevert;
-use casper_types::{ContractPackageHash, Key, U512};
-use casper_types::account::AccountHash;
+use casper_types::{ContractPackageHash, Key, U512, account::AccountHash};
 use casper_types::contracts::NamedKeys;
 use crate::{AuctionError, keys, utils};
 use crate::data::{AuctionData, DUTCH_AUCTION, ENGLISH_AUCTION, SWAP};
@@ -33,6 +32,7 @@ fn get_cancellable_times() -> (u64, Option<u64>, u64) {
         {
             return (start, cancel, end);
         }
+        runtime::revert(AuctionError::InvalidTimes)
     }
 
     if u64::from(runtime::get_blocktime()) <= start
@@ -97,18 +97,6 @@ fn get_token() -> (Key, Key, String, ContractPackageHash) {
     return (token_owner, beneficiary_account, token_id, ContractPackageHash::from(token_contract_hash));
 }
 
-fn get_marketplace_commissions(ma: &Option<String>, mc: &Option<u32>) -> (AccountHash, u32) {
-    let marketplace_commission = match mc {
-        Some(i) => *i,
-        None => runtime::get_named_arg::<u32>(keys::MARKETPLACE_COMMISSION)
-    };
-    let marketplace_account = match ma {
-        Some(a) => utils::string_to_account_hash(a),
-        None => runtime::get_named_arg::<AccountHash>(keys::MARKETPLACE_ACCOUNT)
-    };
-    return (marketplace_account, marketplace_commission);
-}
-
 fn get_proxy_contracts() -> (Option<ContractPackageHash>, Option<ContractPackageHash>) {
     let kyc_package_hash = match runtime::get_named_arg::<Key>(keys::KYC_PACKAGE_HASH)
         .into_hash() {
@@ -123,10 +111,7 @@ fn get_proxy_contracts() -> (Option<ContractPackageHash>, Option<ContractPackage
     return (kyc_package_hash, synth_package_hash);
 }
 
-pub fn create_english_auction_named_keys(ma: Option<String>, mc: Option<u32>) -> NamedKeys {
-    // Marketplace commission structure
-    let (marketplace_account, marketplace_commission) = get_marketplace_commissions(&ma, &mc);
-
+pub fn create_english_auction_named_keys(marketplace_account: AccountHash, marketplace_commission: u32) -> NamedKeys {
     // Get the token info
     let (token_owner, beneficiary_account, token_id, token_package_hash) = get_token();
     // Validate the commission structure in the NFT
@@ -178,10 +163,7 @@ pub fn create_english_auction_named_keys(ma: Option<String>, mc: Option<u32>) ->
     named_keys
 }
 
-pub fn create_dutch_auction_named_keys(ma: Option<String>, mc: Option<u32>) -> NamedKeys {
-    // Marketplace commission structure
-    let (marketplace_account, marketplace_commission) = get_marketplace_commissions(&ma, &mc);
-
+pub fn create_dutch_auction_named_keys(marketplace_account: AccountHash, marketplace_commission: u32) -> NamedKeys {
     // Get the token info
     let (token_owner, beneficiary_account, token_id, token_package_hash) = get_token();
     // Validate the commission structure in the NFT
@@ -193,6 +175,9 @@ pub fn create_dutch_auction_named_keys(ma: Option<String>, mc: Option<u32>) -> N
     // Prices
     let start_price = runtime::get_named_arg::<U512>(keys::START_PRICE);
     let reserve_price = runtime::get_named_arg::<U512>(keys::RESERVE_PRICE);
+    if start_price <= reserve_price {
+        runtime::revert(AuctionError::InvalidPrices)
+    }
     // Times
     let (start_time, end_time) = get_fixed_times();
 
@@ -224,10 +209,7 @@ pub fn create_dutch_auction_named_keys(ma: Option<String>, mc: Option<u32>) -> N
     named_keys
 }
 
-pub fn create_swap_named_keys(ma: Option<String>, mc: Option<u32>) -> NamedKeys {
-    // Marketplace commission structure
-    let (marketplace_account, marketplace_commission) = get_marketplace_commissions(&ma, &mc);
-
+pub fn create_swap_named_keys(marketplace_account: AccountHash, marketplace_commission: u32) -> NamedKeys {
     // Get the token info
     let (token_owner, beneficiary_account, token_id, token_package_hash) = get_token();
     // Validate the commission structure in the NFT

@@ -7,4 +7,5 @@ pub const FINALIZE: &str = "finalize";
 pub const CANCEL_AUCTION: &str = "cancel_auction";
 pub const APPROVE: &str = "approve";
 pub const REJECT: &str = "reject";
+pub const GET_BID: &str = "get_bid";
 

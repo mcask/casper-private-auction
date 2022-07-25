@@ -1,16 +1,12 @@
 use casper_types::{
-    account::AccountHash, ContractPackageHash, Key, PublicKey, runtime_args,
-    RuntimeArgs, SecretKey, U512,
+    account::AccountHash, ContractPackageHash, Key, runtime_args,
+    RuntimeArgs, U512,
 };
 
-use casper_private_auction_core::accounts::{
-    MARKETPLACE_ACCOUNT,
-    MARKETPLACE_COMMISSION
-};
 use casper_private_auction_core::keys;
 
 use crate::auction::BaseAuctionArgs;
-use crate::utils::get_now_u64;
+use crate::utils::{base_account, get_now_u64};
 
 #[derive(Debug)]
 pub struct AuctionArgBuilder {
@@ -27,32 +23,28 @@ pub struct AuctionArgBuilder {
     end_time: u64,
     name: String,
     swap_price: U512,
-    marketplace_account: AccountHash,
-    marketplace_commission: u32,
+    nft_commission: u32,
 }
 
 impl AuctionArgBuilder {
-    pub fn new_with_necessary(
-        beneficiary: &AccountHash,
-        token_contract_hash: &ContractPackageHash,
-        kyc_package_hash: &ContractPackageHash,
-        synth_package_hash: &ContractPackageHash,
-        token_id: &str,
+    pub fn base(
         start_time: u64,
-        swap_price: &U512,
+        swap_price: U512,
+        nft_commission: u32,
     ) -> Self {
+        let account = base_account();
+
         AuctionArgBuilder {
-            beneficiary_account: *beneficiary,
-            token_contract_hash: *token_contract_hash,
-            kyc_package_hash: *kyc_package_hash,
-            synth_package_hash: *synth_package_hash,
-            token_id: token_id.to_string(),
+            beneficiary_account: account.clone(),
+            token_contract_hash: ContractPackageHash::new([0u8; 32]),
+            kyc_package_hash: ContractPackageHash::new([0u8; 32]),
+            synth_package_hash: ContractPackageHash::new([0u8; 32]),
+            token_id: "token_id".to_string(),
             start_time,
             end_time: start_time + 3500,
             name: "test".to_string(),
-            swap_price: swap_price.clone(),
-            marketplace_account: AccountHash::from_formatted_str(MARKETPLACE_ACCOUNT).unwrap(),
-            marketplace_commission: MARKETPLACE_COMMISSION,
+            swap_price,
+            nft_commission,
         }
     }
 }
@@ -66,17 +58,22 @@ impl BaseAuctionArgs for AuctionArgBuilder {
             keys::SYNTHETIC_PACKAGE_HASH=>Key::Hash(self.synth_package_hash.value()),
             keys::TOKEN_ID=>self.token_id.to_owned(),
             keys::START => self.start_time,
-            keys::END => self.start_time+self.end_time,
+            keys::END => self.end_time,
             keys::NAME => self.name.clone(),
             keys::SWAP_PRICE=> self.swap_price,
-            keys::MARKETPLACE_ACCOUNT => self.marketplace_account,
-            keys::MARKETPLACE_COMMISSION => self.marketplace_commission,
         }
     }
 
     fn set_start_time(&mut self, time: u64) {
         self.start_time = time;
-        self.end_time = time + 5000;
+    }
+
+    fn set_end_time(&mut self, time: u64) {
+        self.end_time = time;
+    }
+
+    fn set_swap_price(&mut self, price: U512) {
+        self.swap_price = price;
     }
 
     fn set_beneficiary(&mut self, account: &AccountHash) {
@@ -99,6 +96,10 @@ impl BaseAuctionArgs for AuctionArgBuilder {
         self.token_id = token_id.clone();
     }
 
+    fn get_nft_commission(&self) -> u32 {
+        self.nft_commission
+    }
+
     fn get_wasm(&self) -> String {
         "swap-installer.wasm".to_string()
     }
@@ -106,10 +107,10 @@ impl BaseAuctionArgs for AuctionArgBuilder {
 
 impl Default for AuctionArgBuilder {
     fn default() -> Self {
-        let admin_secret = SecretKey::ed25519_from_bytes([1u8; 32]).unwrap();
+        let account = base_account();
         let now: u64 = get_now_u64();
         AuctionArgBuilder {
-            beneficiary_account: AccountHash::from(&PublicKey::from(&admin_secret)),
+            beneficiary_account: account.clone(),
             token_contract_hash: ContractPackageHash::new([0u8; 32]),
             kyc_package_hash: ContractPackageHash::new([0u8; 32]),
             synth_package_hash: ContractPackageHash::new([0u8; 32]),
@@ -118,8 +119,7 @@ impl Default for AuctionArgBuilder {
             end_time: now + 3500,
             name: "test".to_string(),
             swap_price: U512::from(2000),
-            marketplace_account: AccountHash::from_formatted_str(MARKETPLACE_ACCOUNT).unwrap(),
-            marketplace_commission: MARKETPLACE_COMMISSION,
+            nft_commission: 100_u32
         }
     }
 }

@@ -199,7 +199,7 @@ impl Auction {
                         // Marketplace share first, then people get money
                         let (marketplace_account, marketplace_commission) =
                             AuctionData::marketplace_data();
-                        let market_share = bid.0 / 1000 * marketplace_commission;
+                        let market_share = (bid.0 / 1000) * marketplace_commission;
                         system::transfer_from_purse_to_account(
                             auction_purse,
                             marketplace_account,
@@ -213,6 +213,9 @@ impl Auction {
                         let mut given_as_shares = U512::zero();
                         for (account, share) in AuctionData::compute_commissions() {
                             let actor_share = share_piece * share;
+                            if actor_share == U512::from(0_u64) {
+                                runtime::revert(AuctionError::BadState);
+                            }
                             system::transfer_from_purse_to_account(
                                 auction_purse,
                                 account,

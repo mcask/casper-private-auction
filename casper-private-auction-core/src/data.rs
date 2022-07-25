@@ -61,9 +61,9 @@ impl AuctionData {
         // })
     }
 
-    pub fn auction_format() -> u8 {
-        read_named_key_value::<u8>(keys::AUCTION_FORMAT)
-    }
+    // pub fn auction_format() -> u8 {
+    //     read_named_key_value::<u8>(keys::AUCTION_FORMAT)
+    // }
 
     pub fn bids() -> Bids {
         Bids::at()
@@ -142,6 +142,7 @@ impl AuctionData {
         let start_time = Self::start_time();
         let end_time = Self::end_time();
         let block_time = u64::from(runtime::get_blocktime());
+
         if block_time < start_time {
             runtime::revert(AuctionError::EarlyBid)
         }

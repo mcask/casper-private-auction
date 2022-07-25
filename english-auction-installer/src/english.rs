@@ -4,6 +4,7 @@
 extern crate alloc;
 
 use alloc::{format, string::String, vec};
+use alloc::boxed::Box;
 
 use casper_contract::{
     contract_api::{
@@ -12,12 +13,13 @@ use casper_contract::{
     },
     unwrap_or_revert::UnwrapOrRevert,
 };
-use casper_types::{ApiError, CLType, ContractPackageHash, EntryPoint, EntryPointAccess, EntryPoints, EntryPointType, Key, Parameter, runtime_args, RuntimeArgs, U512, URef};
+use casper_types::{ApiError, CLType, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess, EntryPoints, EntryPointType, Key, Parameter, runtime_args, RuntimeArgs, U512, URef};
 
 use casper_private_auction_core::{accounts, auction::Auction, bids::Bids, constructors, functions, keys};
 use casper_private_auction_core::data::AuctionData;
 use casper_private_auction_core::english::EnglishAuction;
 use casper_private_auction_core::error::AuctionError;
+use casper_private_auction_core::utils::string_to_account_hash;
 
 #[no_mangle]
 pub extern "C" fn bid() {
@@ -114,6 +116,13 @@ pub extern "C" fn reject() {
 }
 
 #[no_mangle]
+pub extern "C" fn get_bid() {
+    let bids = Bids::at();
+    let bid = bids.get(&AuctionData::current_bidder().into_account().unwrap());
+    runtime::ret(CLValue::from_t(bid).unwrap_or_revert());
+}
+
+#[no_mangle]
 pub extern "C" fn init() {
     if runtime::get_key(keys::AUCTION_PURSE).is_none() {
         let purse = system::create_purse();
@@ -198,6 +207,14 @@ pub fn get_entry_points() -> EntryPoints {
     ));
 
     entry_points.add_entry_point(EntryPoint::new(
+        functions::GET_BID,
+        vec![],
+        CLType::Option(Box::new(CLType::U512)),
+        EntryPointAccess::Public,
+        EntryPointType::Contract,
+    ));
+
+    entry_points.add_entry_point(EntryPoint::new(
         functions::INIT,
         vec![],
         CLType::Unit,
@@ -212,8 +229,8 @@ pub fn get_entry_points() -> EntryPoints {
 pub extern "C" fn call() {
     let entry_points = get_entry_points();
     let auction_named_keys = constructors::create_english_auction_named_keys(
-        Option::Some(accounts::MARKETPLACE_ACCOUNT.into()),
-        Option::Some(accounts::MARKETPLACE_COMMISSION.into()),
+        string_to_account_hash(accounts::MARKETPLACE_ACCOUNT),
+        accounts::MARKETPLACE_COMMISSION,
     );
     let auction_desig: String = runtime::get_named_arg(keys::NAME);
     let (auction_hash, _) = storage::new_locked_contract(
