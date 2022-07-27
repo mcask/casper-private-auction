@@ -68,6 +68,22 @@ fn early_bid() {
 }
 
 #[test]
+#[should_panic = "User(2)"]
+fn late_bid() {
+    let now = utils::get_now_u64();
+    let auction_args = AuctionArgBuilder::base(
+        now + 1000,
+        U512::from(30000),
+        U512::from(20000),
+        100
+    );
+    let mut auction = DutchAuctionContract::deploy(auction_args);
+    let (_, _, _, _, bob, _) = auction.contract.accounts;
+
+    auction.bid(&bob, U512::from(20000), now + 6000);
+}
+
+#[test]
 #[should_panic = "User(3)"]
 fn low_bid() {
     let now = utils::get_now_u64();
@@ -81,6 +97,23 @@ fn low_bid() {
     let (_, _, _, _, bob, _) = auction.contract.accounts;
 
     auction.bid(&bob, U512::from(800), now + 1000);
+}
+
+
+#[test]
+#[should_panic = "User(3)"]
+fn low_bid_current_time() {
+    let now = utils::get_now_u64();
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        U512::from(30000),
+        U512::from(20000),
+        100
+    );
+    let mut auction = DutchAuctionContract::deploy(auction_args);
+    let (_, _, _, _, bob, _) = auction.contract.accounts;
+
+    auction.bid(&bob, U512::from(26000), now + 1000);
 }
 
 #[test]
