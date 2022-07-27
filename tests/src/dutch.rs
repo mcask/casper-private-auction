@@ -26,8 +26,8 @@ fn deploy_auction_invalid_prices() {
     let now = utils::get_now_u64();
     let auction_args = AuctionArgBuilder::base(
         now,
-        U512::from(2000),
-        U512::from(3000),
+        U512::from(20000),
+        U512::from(30000),
         100
     );
     DutchAuctionContract::deploy(auction_args);
@@ -56,8 +56,8 @@ fn early_bid() {
     let now = utils::get_now_u64();
     let auction_args = AuctionArgBuilder::base(
         now + 1000,
-        U512::from(3000),
-        U512::from(2000),
+        U512::from(30000),
+        U512::from(20000),
         100
     );
     let mut auction = DutchAuctionContract::deploy(auction_args);
@@ -72,8 +72,8 @@ fn low_bid() {
     let now = utils::get_now_u64();
     let auction_args = AuctionArgBuilder::base(
         now,
-        U512::from(3000),
-        U512::from(2000),
+        U512::from(30000),
+        U512::from(20000),
         100
     );
     let mut auction = DutchAuctionContract::deploy(auction_args);

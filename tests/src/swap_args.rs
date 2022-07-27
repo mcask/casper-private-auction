@@ -118,7 +118,7 @@ impl Default for AuctionArgBuilder {
             start_time: now + 500,
             end_time: now + 3500,
             name: "test".to_string(),
-            swap_price: U512::from(2000),
+            swap_price: U512::from(20000),
             nft_commission: 100_u32
         }
     }

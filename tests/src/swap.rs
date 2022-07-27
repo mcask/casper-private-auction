@@ -46,7 +46,7 @@ fn early_bid() {
     let now = utils::get_now_u64();
     let auction_args = AuctionArgBuilder::base(
         now + 1000,
-        U512::from(1000),
+        U512::from(10000),
         100
     );
     let mut auction = SwapAuctionContract::deploy(auction_args);
@@ -56,33 +56,64 @@ fn early_bid() {
 }
 
 #[test]
-#[should_panic = "User(26)"]
+#[should_panic = "User(2)"]
+fn late_bid() {
+    let now = utils::get_now_u64();
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        U512::from(10000),
+        100
+    );
+    let mut auction = SwapAuctionContract::deploy(auction_args);
+    let (_, _, _, _, bob, _) = auction.contract.accounts;
+
+    auction.bid(&bob, U512::from(12000), now + 10000);
+}
+
+#[test]
+#[should_panic = "User(10)"]
 fn low_bid() {
     let now = utils::get_now_u64();
     let auction_args = AuctionArgBuilder::base(
         now,
-        U512::from(1000),
+        U512::from(10000),
         100
     );
     let mut auction = SwapAuctionContract::deploy(auction_args);
     let (_, _, _, _, bob, _) = auction.contract.accounts;
 
     // This fails because the wrong amount is transferred from the purse
-    auction.bid(&bob, U512::from(800), now + 1000);
+    auction.bid(&bob, U512::from(8000), now + 1000);
 }
 
 #[test]
-fn hit() {
+#[should_panic = "User(18)"]
+fn no_kyc_bid() {
     let now = utils::get_now_u64();
     let auction_args = AuctionArgBuilder::base(
         now,
-        U512::from(1000),
+        U512::from(10000),
+        100
+    );
+    let mut auction = SwapAuctionContract::deploy(auction_args);
+    let (_, _, _, _, _, dan) = auction.contract.accounts;
+
+    // This fails because the wrong amount is transferred from the purse
+    auction.bid(&dan, U512::from(10000), now + 1000);
+}
+
+#[test]
+fn bid() {
+    let now = utils::get_now_u64();
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        U512::from(10000),
         100_u32
     );
     let mut auction = SwapAuctionContract::deploy(auction_args);
     let (_, _, _, _, bob, _) = auction.contract.accounts;
 
-    let bid_price = U512::from(1000);
+    let bid_price = U512::from(10000);
     // Compute marketplace commission
     let mkt_com = (bid_price.as_u32() / 1000) * MARKETPLACE_COMMISSION;
 
@@ -98,113 +129,169 @@ fn hit() {
         assert!(!bid.unwrap().1);
         assert!(!auction.contract.is_live());
         assert!(auction.contract.is_settled());
-        let (ab, mb, arb, ali, bob, dan) = auction.contract.get_balances();
-        print!("{}\n", ab);
-        print!("{}\n", mb);
-        print!("{}\n", arb);
-        print!("{}\n", ali);
-        print!("{}\n", bob);
-        print!("{}\n", dan);
+        let (_, mb, arb, _, _, _) = auction.contract.get_balances();
         assert_eq!(mb, U512::from(mkt_com + 1)); // starting funds are 1
-        assert_eq!(arb, U512::from(97_u64));
+        assert_eq!(arb, U512::from(976_u64));
     }
 }
 
-// 33500,000,000,000
-// 43500,000,000,000
+#[test]
+#[should_panic = "User(58)"]
+fn synth_bid_no_permission() {
+    let now = utils::get_now_u64();
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        U512::from(10000),
+        100_u32
+    );
+    let mut auction = SwapAuctionContract::deploy(auction_args);
+    let (_, market, _, _, bob, _) = auction.contract.accounts;
+    auction.contract.transfer_funds(&market, U512::from(100_000_000_000_000_u64));
+    // Now hit the price
+    auction.synthetic_bid(&market, &bob, U512::from(10000), now + 1000);
+}
 
-//
-//
-// #[test]
-// fn english_auction_bid_finalize_test() {
-//     let now = auction_args::AuctionArgsBuilder::get_now_u64();
-//     let mut auction = auction::AuctionContract::deploy_with_default_args(true, now);
-//     assert!(now < auction.get_end());
-//     auction.bid(&auction.ali.clone(), U512::from(30000), now);
-//     auction.bid(&auction.bob.clone(), U512::from(40000), now);
-//     auction.finalize(&auction.admin.clone(), now + 3500);
-//     assert!(auction.is_finalized());
-//     assert_eq!(auction.bob, auction.get_winner().unwrap());
-//     assert_eq!(
-//         U512::from(40000),
-//         auction.get_winning_bid().unwrap()
-//     );
-//     // assert!(auction.get_marketplace_balance() >= U512::from(4000));
-//     assert!(auction.get_marketplace_balance() >= U512::from(1000));
-// }
-//
-// #[test]
-// fn english_auction_cancel_only_bid_test() {
-//     let now = auction_args::AuctionArgsBuilder::get_now_u64();
-//     let mut auction = auction::AuctionContract::deploy_with_default_args(true, now);
-//     assert!(now < auction.get_end());
-//     auction.bid(&auction.bob.clone(), U512::from(40000), now + 1);
-//     auction.cancel_bid(&auction.bob.clone(), now + 3);
-//     auction.finalize(&auction.admin.clone(), now + 3500);
-//     assert!(auction.is_finalized());
-//     assert!(auction.get_winner().is_none());
-// }
-//
-// #[test]
-// #[should_panic = "User(3)"]
-// fn english_auction_bid_cancel_test() {
-//     let now = auction_args::AuctionArgsBuilder::get_now_u64();
-//     let mut auction = auction::AuctionContract::deploy_with_default_args(true, now);
-//     assert!(now < auction.get_end());
-//     auction.bid(&auction.bob.clone(), U512::from(40000), now + 1);
-//     auction.bid(&auction.ali.clone(), U512::from(30000), now + 2);
-//     auction.cancel_bid(&auction.bob.clone(), now + 3);
-//     auction.finalize(&auction.admin.clone(), now + 3500);
-//     assert!(auction.is_finalized());
-//     assert!(auction.get_winner().is_some());
-//     assert_eq!(auction.ali, auction.get_winner().unwrap());
-//     assert_eq!(
-//         U512::from(30000),
-//         auction.get_winning_bid().unwrap()
-//     );
-// }
-//
-// #[test]
-// fn dutch_auction_bid_finalize_test() {
-//     let now = auction_args::AuctionArgsBuilder::get_now_u64();
-//     let mut auction_args = auction_args::AuctionArgsBuilder::default();
-//     auction_args.set_starting_price(Some(U512::from(40000)));
-//     auction_args.set_dutch();
-//     let mut auction = auction::AuctionContract::deploy_contracts(auction_args);
-//     auction.bid(&auction.bob.clone(), U512::from(40000), now + 1000);
-//     assert!(auction.is_finalized());
-//     assert_eq!(auction.bob, auction.get_winner().unwrap());
-//     assert_eq!(
-//         U512::from(40000),
-//         auction.get_winning_bid().unwrap()
-//     );
-// }
-//
-// // Finalizing the auction before it ends results in User(0) error
-// #[test]
-// #[should_panic = "User(0)"]
-// fn english_auction_early_finalize_test() {
-//     let now = auction_args::AuctionArgsBuilder::get_now_u64();
-//     let mut auction = auction::AuctionContract::deploy_with_default_args(true, now);
-//     auction.finalize(&auction.admin.clone(), now + 300);
-// }
-//
-// // User error 1 happens if not the correct user is trying to interact with the auction.
-// // More precisely, if a) the bidder is a contract. b) someone other than a stored contact is trying to transfer out the auctioned token
-//
-// // Trying to bid after the end of the auction results in User(2) error
-// #[test]
-// #[should_panic = "User(2)"]
-// fn english_auction_bid_too_late_test() {
-//     let now = auction_args::AuctionArgsBuilder::get_now_u64();
-//     let mut auction = auction::AuctionContract::deploy_with_default_args(true, now);
-//     auction.bid(
-//         &auction.bob.clone(),
-//         U512::from(40000),
-//         now + 10000,
-//     );
-// }
-//
+#[test]
+#[should_panic = "User(10)"]
+fn synth_bid_too_low() {
+    let now = utils::get_now_u64();
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        U512::from(10000),
+        100_u32
+    );
+    let mut auction = SwapAuctionContract::deploy(auction_args);
+    let (_, market, _, ali, _, _) = auction.contract.accounts;
+    auction.contract.transfer_funds(&market, U512::from(100_000_000_000_000_u64));
+    // Now hit the price
+    auction.synthetic_bid(&market, &ali, U512::from(8000), now + 1000);
+}
+
+#[test]
+fn synth_bid() {
+    let now = utils::get_now_u64();
+    let bid_price = U512::from(10000_u64);
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        bid_price.clone(),
+        100_u32
+    );
+    let mut auction = SwapAuctionContract::deploy(auction_args);
+    let (_, market, _, ali, _, _) = auction.contract.accounts;
+    auction.contract.transfer_funds(&market, U512::from(100_000_000_000_000_u64));
+    // Now hit the price
+    auction.synthetic_bid(&market, &ali, bid_price.clone(), now + 1000);
+    // This should put auction to pending settlement
+    {
+        let (winner, bid) = auction.contract.get_current_winner();
+        assert!(winner.is_some());
+        assert_eq!(winner.unwrap(), ali);
+        assert!(bid.is_some());
+        assert_eq!(bid.unwrap().0, bid_price);
+        assert!(bid.unwrap().1);
+        assert!(!auction.contract.is_live());
+        assert!(auction.contract.is_pending_settle());
+    }
+}
+
+#[test]
+#[should_panic = "User(1)"]
+fn synth_bid_approve_no_permission() {
+    let now = utils::get_now_u64();
+    let bid_price = U512::from(10000_u64);
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        bid_price.clone(),
+        100_u32
+    );
+    let mut auction = SwapAuctionContract::deploy(auction_args);
+    let (_, market, _, ali, _, _) = auction.contract.accounts;
+    auction.contract.transfer_funds(&market, U512::from(100_000_000_000_000_u64));
+    // Now hit the price
+    auction.synthetic_bid(&market, &ali, bid_price.clone(), now + 1000);
+    // This should put auction to pending settlement
+    {
+        let (winner, bid) = auction.contract.get_current_winner();
+        assert!(winner.is_some());
+        assert_eq!(winner.unwrap(), ali);
+        assert!(bid.is_some());
+        assert_eq!(bid.unwrap().0, bid_price);
+        assert!(bid.unwrap().1);
+        assert!(!auction.contract.is_live());
+        assert!(auction.contract.is_pending_settle());
+    }
+    auction.approve(&ali, now + 2000);
+}
+
+#[test]
+fn synth_bid_approve() {
+    let now = utils::get_now_u64();
+    let bid_price = U512::from(10000_u64);
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        bid_price.clone(),
+        100_u32
+    );
+    let mut auction = SwapAuctionContract::deploy(auction_args);
+    let (_, market, _, ali, _, _) = auction.contract.accounts;
+    auction.contract.transfer_funds(&market, U512::from(100_000_000_000_000_u64));
+    // Now hit the price
+    auction.synthetic_bid(&market, &ali, bid_price.clone(), now + 1000);
+    // This should put auction to pending settlement
+    {
+        let (winner, bid) = auction.contract.get_current_winner();
+        assert!(winner.is_some());
+        assert_eq!(winner.unwrap(), ali);
+        assert!(bid.is_some());
+        assert_eq!(bid.unwrap().0, bid_price);
+        assert!(bid.unwrap().1);
+        assert!(!auction.contract.is_live());
+        assert!(auction.contract.is_pending_settle());
+    }
+    auction.approve(&market, now + 2000);
+    {
+        assert!(!auction.contract.is_live());
+        assert!(auction.contract.is_settled());
+        let (_, _, arb, _, _, _) = auction.contract.get_balances();
+        // There should be no fund movement
+        assert_eq!(arb, U512::from(1_u64));
+    }
+}
+
+#[test]
+fn synth_bid_reject() {
+    let now = utils::get_now_u64();
+    let bid_price = U512::from(10000_u64);
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        bid_price.clone(),
+        100_u32
+    );
+    let mut auction = SwapAuctionContract::deploy(auction_args);
+    let (_, market, _, ali, _, _) = auction.contract.accounts;
+    auction.contract.transfer_funds(&market, U512::from(100_000_000_000_000_u64));
+    // Now hit the price
+    auction.synthetic_bid(&market, &ali, bid_price.clone(), now + 1000);
+    // This should put auction to pending settlement
+    {
+        let (winner, bid) = auction.contract.get_current_winner();
+        assert!(winner.is_some());
+        assert_eq!(winner.unwrap(), ali);
+        assert!(bid.is_some());
+        assert_eq!(bid.unwrap().0, bid_price);
+        assert!(bid.unwrap().1);
+        assert!(!auction.contract.is_live());
+        assert!(auction.contract.is_pending_settle());
+    }
+    auction.reject(&market, now + 2000);
+    {
+        assert!(!auction.contract.is_live());
+        assert!(auction.contract.is_rejected());
+        let (_, _, arb, _, _, _) = auction.contract.get_balances();
+        // There should be no fund movement
+        assert_eq!(arb, U512::from(1_u64));
+    }
+}
 // // Trying to bid an amount below the reserve results in User(3) error
 // #[test]
 // #[should_panic = "User(19)"]

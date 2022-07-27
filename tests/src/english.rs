@@ -56,13 +56,13 @@ fn early_bid() {
     let now = utils::get_now_u64();
     let auction_args = AuctionArgBuilder::base(
         now + 1000,
-        U512::from(1000),
+        U512::from(10000),
         100
     );
     let mut auction = EnglishAuctionContract::deploy(auction_args);
     let (_, _, _, _, bob, _) = auction.contract.accounts;
 
-    auction.bid(&bob, U512::from(1200), now);
+    auction.bid(&bob, U512::from(12000), now);
 }
 
 #[test]
@@ -71,14 +71,14 @@ fn low_bid() {
     let now = utils::get_now_u64();
     let auction_args = AuctionArgBuilder::base(
         now,
-        U512::from(1000),
+        U512::from(10000),
         100
     );
     let mut auction = EnglishAuctionContract::deploy(auction_args);
     let (_, _, _, _, bob, _) = auction.contract.accounts;
 
     // This fails because the wrong amount is transferred from the purse
-    auction.bid(&bob, U512::from(800), now + 1000);
+    auction.bid(&bob, U512::from(8000), now + 1000);
 }
 
 

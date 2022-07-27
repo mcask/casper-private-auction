@@ -122,6 +122,9 @@ pub fn create_english_auction_named_keys(marketplace_account: AccountHash, marke
 
     // Prices
     let reserve_price = runtime::get_named_arg::<U512>(keys::RESERVE_PRICE);
+    if reserve_price <= U512::from(1000_u64) {
+        runtime::revert(AuctionError::InvalidPrices);
+    }
     // Times
     let (start_time, cancellation_time, end_time) = get_cancellable_times();
 
@@ -175,6 +178,9 @@ pub fn create_dutch_auction_named_keys(marketplace_account: AccountHash, marketp
     // Prices
     let start_price = runtime::get_named_arg::<U512>(keys::START_PRICE);
     let reserve_price = runtime::get_named_arg::<U512>(keys::RESERVE_PRICE);
+    if start_price <= U512::from(1000_u64) || reserve_price <= U512::from(1000_u64) {
+        runtime::revert(AuctionError::InvalidPrices);
+    }
     if start_price <= reserve_price {
         runtime::revert(AuctionError::InvalidPrices)
     }
@@ -219,6 +225,9 @@ pub fn create_swap_named_keys(marketplace_account: AccountHash, marketplace_comm
 
     // Prices
     let swap_price = runtime::get_named_arg::<U512>(keys::SWAP_PRICE);
+    if swap_price <= U512::from(1000_u64) {
+        runtime::revert(AuctionError::InvalidPrices);
+    }
     // Times
     let (start_time, end_time) = get_fixed_times();
 

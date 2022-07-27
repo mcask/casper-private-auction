@@ -1,3 +1,4 @@
+use casper_contract::contract_api::runtime;
 use casper_contract::unwrap_or_revert::UnwrapOrRevert;
 pub use casper_types::{
     ApiError, bytesrepr::FromBytes, CLTyped, ContractHash, contracts::NamedKeys,
@@ -19,9 +20,12 @@ impl Swap {
     /**
      * Hit the swap
      */
-    pub fn bid(account: Key, bidder_purse: Option<URef>) {
+    pub fn bid(account: Key, bid: U512, bidder_purse: Option<URef>) {
         // Get computed current price
         let swap_price = AuctionData::swap_price();
+        if swap_price != bid {
+            runtime::revert(AuctionError::InvalidPrices);
+        }
         let bidder = account.into_account()
             .unwrap_or_revert_with(AuctionError::KeyNotAccount);
 

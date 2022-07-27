@@ -17,8 +17,8 @@ use crate::{
     data::AuctionData,
     events::{emit, AuctionEvent},
 };
+use crate::accounts::MARKETPLACE_ACCOUNT;
 use crate::data::{AUCTION_PENDING_SETTLE, AUCTION_REJECTED, AUCTION_SETTLED};
-use crate::keys::MARKETPLACE_ACCOUNT;
 use crate::utils::string_to_account_hash;
 
 pub struct Auction;
@@ -182,67 +182,82 @@ impl Auction {
             _ => Self::transfer_token(AuctionData::token_owner()),
         }
 
-        fn return_bids(auction_purse: URef) {
-            let mut bids = AuctionData::bids();
-            for (bidder, bid) in &bids.to_map() {
-                system::transfer_from_purse_to_account(auction_purse, *bidder, bid.0.clone(), None)
-                    .unwrap_or_revert_with(AuctionError::AuctionEndReturnBids);
-            }
-            bids.clear();
-        }
+        // fn return_bids(auction_purse: URef) {
+        //     let mut bids = AuctionData::bids();
+        //     for (bidder, bid) in &bids.to_map() {
+        //         // If the bid is synthetic - nothing to return
+        //         if !bid.1 {
+        //             system::transfer_from_purse_to_account(auction_purse, *bidder, bid.0.clone(), None)
+        //                 .unwrap_or_revert_with(AuctionError::AuctionEndReturnBids);
+        //         }
+        //     }
+        //     bids.clear();
+        // }
         let auction_purse = AuctionData::auction_purse();
         match winner {
             Some(key) => {
                 let mut bids = AuctionData::bids();
                 match bids.get(&key) {
                     Some(bid) => {
-                        // Marketplace share first, then people get money
-                        let (marketplace_account, marketplace_commission) =
-                            AuctionData::marketplace_data();
-                        let market_share = (bid.0 / 1000) * marketplace_commission;
-                        system::transfer_from_purse_to_account(
-                            auction_purse,
-                            marketplace_account,
-                            market_share,
-                            None,
-                        )
-                        .unwrap_or_revert_with(AuctionError::TransferMarketPlaceShare);
-                        let proceeds = bid.0 - market_share;
-                        // Every actor receives x one-thousandth of the winning bid, the surplus goes to the designated beneficiary account.
-                        let share_piece = proceeds / 1000;
-                        let mut given_as_shares = U512::zero();
-                        for (account, share) in AuctionData::compute_commissions() {
-                            let actor_share = share_piece * share;
-                            if actor_share == U512::from(0_u64) {
-                                runtime::revert(AuctionError::BadState);
+                        if !bid.1 {
+                            // Marketplace share first, then people get money
+                            let (marketplace_account, marketplace_commission) =
+                                AuctionData::marketplace_data();
+                            let market_share = (bid.0 * marketplace_commission) / 1000;
+                            system::transfer_from_purse_to_account(
+                                auction_purse,
+                                marketplace_account,
+                                market_share,
+                                None,
+                            )
+                                .unwrap_or_revert_with(AuctionError::TransferMarketPlaceShare);
+                            let proceeds = bid.0 - market_share;
+                            // Every actor receives x one-thousandth of the winning bid, the surplus goes to the designated beneficiary account.
+                            let mut given_as_shares = U512::zero();
+                            for (account, share) in AuctionData::compute_commissions() {
+                                let actor_share = (proceeds * share) / 1000;
+                                if actor_share == U512::from(0_u64) {
+                                    runtime::revert(AuctionError::BadState);
+                                }
+                                system::transfer_from_purse_to_account(
+                                    auction_purse,
+                                    account,
+                                    actor_share,
+                                    None,
+                                )
+                                    .unwrap_or_revert_with(AuctionError::TransferCommissionShare);
+                                given_as_shares += actor_share;
                             }
                             system::transfer_from_purse_to_account(
                                 auction_purse,
-                                account,
-                                actor_share,
+                                AuctionData::beneficiary_account(),
+                                proceeds - given_as_shares,
                                 None,
                             )
-                            .unwrap_or_revert_with(AuctionError::TransferCommissionShare);
-                            given_as_shares += actor_share;
+                                .unwrap_or_revert_with(AuctionError::TransferBeneficiaryShare);
+                            bids.remove_by_key(&key);
                         }
-                        system::transfer_from_purse_to_account(
-                            auction_purse,
-                            AuctionData::beneficiary_account(),
-                            proceeds - given_as_shares,
-                            None,
-                        )
-                        .unwrap_or_revert_with(AuctionError::TransferBeneficiaryShare);
-                        bids.remove_by_key(&key);
-                        return_bids(auction_purse);
+                        // return_bids(auction_purse);
                     }
                     // Something went wrong, so better return everyone's money
-                    _ => return_bids(auction_purse),
+                    _ => {
+                        // skip
+                    }
                 }
             }
             _ => {
-                return_bids(auction_purse);
+                // return_bids(auction_purse);
             }
         }
+        let mut bids = AuctionData::bids();
+        for (bidder, bid) in &bids.to_map() {
+            // If the bid is synthetic - nothing to return
+            if !bid.1 {
+                system::transfer_from_purse_to_account(auction_purse, *bidder, bid.0.clone(), None)
+                    .unwrap_or_revert_with(AuctionError::AuctionEndReturnBids);
+            }
+        }
+        bids.clear();
     }
 
     pub fn approve() {

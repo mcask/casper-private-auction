@@ -130,7 +130,7 @@ impl Default for AuctionArgBuilder {
             cancel_time: Some(now + 3500),
             end_time: now + 5000,
             name: "test".to_string(),
-            reserve_price: U512::from(1000),
+            reserve_price: U512::from(10000),
             bidder_cap: Some(5_u64),
             minimum_bid_step: Some(U512::from(10)),
             auction_timer_extension: Some(500),

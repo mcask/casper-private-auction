@@ -14,9 +14,8 @@ use casper_private_auction_core::accounts::MARKETPLACE_ACCOUNT;
 use casper_private_auction_core::keys;
 
 use crate::{
-    utils::{deploy, DeploySource, fund_account, query, query_dictionary_item},
+    utils::{deploy, DeploySource, fund_account, query, query_dictionary_item, create_account},
 };
-use crate::utils::{create_account, empty_account};
 
 pub trait BaseAuctionArgs {
     fn build(&self) -> RuntimeArgs;
@@ -63,13 +62,16 @@ impl AuctionContract {
         let dan = create_account();
 
         let mut builder = InMemoryWasmTestBuilder::default();
+        let base_amount = U512::from(50_000_000_000_000_u64);
+        let empty_amount = U512::from(1_u64);
+
         builder.run_genesis(&DEFAULT_RUN_GENESIS_REQUEST).commit();
-        builder.exec(fund_account(&admin)).expect_success().commit();
-        builder.exec(empty_account(&market)).expect_success().commit();
-        builder.exec(empty_account(&artist)).expect_success().commit();
-        builder.exec(fund_account(&ali)).expect_success().commit();
-        builder.exec(fund_account(&bob)).expect_success().commit();
-        builder.exec(fund_account(&dan)).expect_success().commit();
+        builder.exec(fund_account(&admin, base_amount.clone())).expect_success().commit();
+        builder.exec(fund_account(&market, empty_amount)).expect_success().commit();
+        builder.exec(fund_account(&artist, empty_amount)).expect_success().commit();
+        builder.exec(fund_account(&ali, base_amount.clone())).expect_success().commit();
+        builder.exec(fund_account(&bob, base_amount.clone())).expect_success().commit();
+        builder.exec(fund_account(&dan, base_amount.clone())).expect_success().commit();
 
         let (kyc_hash, kyc_package) = Self::deploy_kyc(&mut builder, &admin);
         Self::add_kyc(&mut builder, &kyc_package, &admin, &admin);
@@ -125,6 +127,10 @@ impl AuctionContract {
             synth: (synth_hash, synth_package),
             accounts: (admin, market, artist, ali, bob, dan),
         }
+    }
+
+    pub fn transfer_funds(&mut self, account: &AccountHash, amount: U512) {
+        self.builder.exec(fund_account(&account, amount)).expect_success().commit();
     }
 
     pub fn deploy_kyc(
@@ -396,7 +402,7 @@ impl AuctionContract {
 
     pub fn synthetic_bid(&mut self, caller: &AccountHash, bidder: &AccountHash, bid: U512, time: u64) {
         self.call(caller, "synthetic_bid", runtime_args! {
-            "bidder" => bidder.clone(),
+            "bidder" => Key::Account(bidder.clone()),
             "bid" => bid
         }, time)
     }

@@ -13,7 +13,7 @@ use casper_contract::{
     },
     unwrap_or_revert::UnwrapOrRevert,
 };
-use casper_types::{ApiError, CLType, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess, EntryPoints, EntryPointType, Key, Parameter, runtime_args, RuntimeArgs, URef};
+use casper_types::{ApiError, CLType, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess, EntryPoints, EntryPointType, Key, Parameter, runtime_args, RuntimeArgs, U512, URef};
 
 use casper_private_auction_core::{accounts, auction::Auction, bids::Bids, constructors, functions, keys};
 use casper_private_auction_core::data::AuctionData;
@@ -35,9 +35,10 @@ pub extern "C" fn bid() {
     Auction::verify(&account);
 
     let bidder_purse = runtime::get_named_arg::<URef>(keys::BID_PURSE);
+    let bid = runtime::get_named_arg::<U512>(keys::BID);
 
     // Place the bid
-    Swap::bid(account, Some(bidder_purse));
+    Swap::bid(account, bid, Some(bidder_purse));
 }
 
 #[no_mangle]
@@ -46,12 +47,13 @@ pub extern "C" fn synthetic_bid() {
 
     // All the details are passed in
     let account = runtime::get_named_arg::<Key>(keys::BIDDER);
-    Auction::verify(&account);
+    let bid = runtime::get_named_arg::<U512>(keys::BID);
+    Auction::synth_allowed(&account, &bid);
 
     // Only admin is allowed to call this
     Auction::check_admin();
 
-    Swap::bid(account, Option::None);
+    Swap::bid(account, bid, Option::None);
 }
 
 #[no_mangle]

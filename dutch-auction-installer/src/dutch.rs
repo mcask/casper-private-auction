@@ -47,12 +47,11 @@ pub extern "C" fn synthetic_bid() {
 
     // All the details are passed in
     let account = runtime::get_named_arg::<Key>(keys::BIDDER);
-    Auction::verify(&account);
+    let bid = runtime::get_named_arg::<U512>(keys::BID);
+    Auction::synth_allowed(&account, &bid);
 
     // Only admin is allowed to call this
     Auction::check_admin();
-
-    let bid = runtime::get_named_arg::<U512>(keys::BID);
 
     DutchAuction::bid(account, bid, Option::<URef>::None);
 }

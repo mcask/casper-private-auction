@@ -35,13 +35,13 @@ pub fn query<T: FromBytes + CLTyped>(
         .expect("Wrong type in query result.")
 }
 
-pub fn fund_account(account: &AccountHash) -> ExecuteRequest {
+pub fn fund_account(account: &AccountHash, amount: U512) -> ExecuteRequest {
     let deploy_item = DeployItemBuilder::new()
         .with_address(*DEFAULT_ACCOUNT_ADDR)
         .with_authorization_keys(&[*DEFAULT_ACCOUNT_ADDR])
         .with_empty_payment_bytes(runtime_args! {ARG_AMOUNT => *DEFAULT_PAYMENT})
         .with_transfer_args(runtime_args! {
-            mint::ARG_AMOUNT => U512::from(50_000_000_000_000_u64),
+            mint::ARG_AMOUNT => amount,
             mint::ARG_TARGET => *account,
             mint::ARG_ID => <Option::<u64>>::None
         })
@@ -50,22 +50,22 @@ pub fn fund_account(account: &AccountHash) -> ExecuteRequest {
 
     ExecuteRequestBuilder::from_deploy_item(deploy_item).build()
 }
-
-pub fn empty_account(account: &AccountHash) -> ExecuteRequest {
-    let deploy_item = DeployItemBuilder::new()
-        .with_address(*DEFAULT_ACCOUNT_ADDR)
-        .with_authorization_keys(&[*DEFAULT_ACCOUNT_ADDR])
-        .with_empty_payment_bytes(runtime_args! {ARG_AMOUNT => *DEFAULT_PAYMENT})
-        .with_transfer_args(runtime_args! {
-            mint::ARG_AMOUNT => U512::from(1_u64),
-            mint::ARG_TARGET => *account,
-            mint::ARG_ID => <Option::<u64>>::None
-        })
-        .with_deploy_hash(rand::thread_rng().gen())
-        .build();
-
-    ExecuteRequestBuilder::from_deploy_item(deploy_item).build()
-}
+//
+// pub fn empty_account(account: &AccountHash) -> ExecuteRequest {
+//     let deploy_item = DeployItemBuilder::new()
+//         .with_address(*DEFAULT_ACCOUNT_ADDR)
+//         .with_authorization_keys(&[*DEFAULT_ACCOUNT_ADDR])
+//         .with_empty_payment_bytes(runtime_args! {ARG_AMOUNT => *DEFAULT_PAYMENT})
+//         .with_transfer_args(runtime_args! {
+//             mint::ARG_AMOUNT => U512::from(1_u64),
+//             mint::ARG_TARGET => *account,
+//             mint::ARG_ID => <Option::<u64>>::None
+//         })
+//         .with_deploy_hash(rand::thread_rng().gen())
+//         .build();
+//
+//     ExecuteRequestBuilder::from_deploy_item(deploy_item).build()
+// }
 
 pub enum DeploySource {
     Code(PathBuf),
