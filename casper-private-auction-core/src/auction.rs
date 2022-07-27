@@ -28,7 +28,7 @@ impl Auction {
     // Check if auction is still live
     pub fn check_valid() {
         if !AuctionData::is_auction_live() || AuctionData::is_done() {
-            runtime::revert(AuctionError::BadState)
+            runtime::revert(AuctionError::AuctionCompleted)
         }
     }
 

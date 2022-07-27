@@ -5,7 +5,7 @@ pub enum AuctionError {
     InvalidCaller = 1,
     LateBid = 2,
     BidTooLow = 3,
-    AlreadyFinal = 4,
+    AuctionCompleted = 4,
     BadState = 5,
     NoBid = 6,
     LateCancellation = 7,

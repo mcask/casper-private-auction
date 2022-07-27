@@ -296,6 +296,36 @@ fn synth_bid_approve() {
 }
 
 #[test]
+#[should_panic = "User(1)"]
+fn synth_bid_reject_no_permission() {
+    let now = utils::get_now_u64();
+    let bid_price = U512::from(30000_u64);
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        U512::from(30000),
+        U512::from(20000),
+        100
+    );
+    let mut auction = DutchAuctionContract::deploy(auction_args);
+    let (_, market, _, ali, _, _) = auction.contract.accounts;
+    auction.contract.transfer_funds(&market, U512::from(100_000_000_000_000_u64));
+    // Now hit the price
+    auction.synthetic_bid(&market, &ali, bid_price.clone(), now + 1000);
+    // This should put auction to pending settlement
+    {
+        let (winner, bid) = auction.contract.get_current_winner();
+        assert!(winner.is_some());
+        assert_eq!(winner.unwrap(), ali);
+        assert!(bid.is_some());
+        assert_eq!(bid.unwrap().0, bid_price);
+        assert!(bid.unwrap().1);
+        assert!(!auction.contract.is_live());
+        assert!(auction.contract.is_pending_settle());
+    }
+    auction.reject(&ali, now + 2000);
+}
+
+#[test]
 fn synth_bid_reject() {
     let now = utils::get_now_u64();
     let bid_price = U512::from(30000_u64);
@@ -331,7 +361,71 @@ fn synth_bid_reject() {
     }
 }
 
+#[test]
+#[should_panic = "User(4)"]
+fn bid_after_settle() {
+    let now = utils::get_now_u64();
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        U512::from(30000),
+        U512::from(20000),
+        100
+    );
+    let mut auction = DutchAuctionContract::deploy(auction_args);
+    let (_, _, _, _, bob, _) = auction.contract.accounts;
 
+    let bid_price = U512::from(30000);
+    // Compute marketplace commission
+    let mkt_com = (bid_price.as_u32() / 1000) * MARKETPLACE_COMMISSION;
+
+    // Now hit the price
+    auction.bid(&bob, bid_price, now + 1000);
+    // This should finalize the auction
+    {
+        let (winner, bid) = auction.contract.get_current_winner();
+        assert!(winner.is_some());
+        assert_eq!(winner.unwrap(), bob);
+        assert!(bid.is_some());
+        assert_eq!(bid.unwrap().0, bid_price);
+        assert!(!bid.unwrap().1);
+        assert!(!auction.contract.is_live());
+        assert!(auction.contract.is_settled());
+        let (_, mb, arb, _, _, _) = auction.contract.get_balances();
+        assert_eq!(mb, U512::from(mkt_com + 1)); // starting funds are 1
+        assert_eq!(arb, U512::from(2926_u64));
+    }
+    auction.bid(&bob, U512::from(20000_u64), now + 2000);
+}
+
+#[test]
+#[should_panic = "User(4)"]
+fn synth_bid_after_settle() {
+    let now = utils::get_now_u64();
+    let bid_price = U512::from(30000_u64);
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        U512::from(30000),
+        U512::from(20000),
+        100
+    );
+    let mut auction = DutchAuctionContract::deploy(auction_args);
+    let (_, market, _, ali, _, _) = auction.contract.accounts;
+    auction.contract.transfer_funds(&market, U512::from(100_000_000_000_000_u64));
+    // Now hit the price
+    auction.synthetic_bid(&market, &ali, bid_price.clone(), now + 1000);
+    // This should put auction to pending settlement
+    {
+        let (winner, bid) = auction.contract.get_current_winner();
+        assert!(winner.is_some());
+        assert_eq!(winner.unwrap(), ali);
+        assert!(bid.is_some());
+        assert_eq!(bid.unwrap().0, bid_price);
+        assert!(bid.unwrap().1);
+        assert!(!auction.contract.is_live());
+        assert!(auction.contract.is_pending_settle());
+    }
+    auction.synthetic_bid(&market, &ali, bid_price.clone(), now + 2000);
+}
 
 
 

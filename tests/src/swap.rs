@@ -259,6 +259,35 @@ fn synth_bid_approve() {
 }
 
 #[test]
+#[should_panic = "User(1)"]
+fn synth_bid_reject_no_permission() {
+    let now = utils::get_now_u64();
+    let bid_price = U512::from(30000_u64);
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        bid_price.clone(),
+        100_u32
+    );
+    let mut auction = SwapAuctionContract::deploy(auction_args);
+    let (_, market, _, ali, _, _) = auction.contract.accounts;
+    auction.contract.transfer_funds(&market, U512::from(100_000_000_000_000_u64));
+    // Now hit the price
+    auction.synthetic_bid(&market, &ali, bid_price.clone(), now + 1000);
+    // This should put auction to pending settlement
+    {
+        let (winner, bid) = auction.contract.get_current_winner();
+        assert!(winner.is_some());
+        assert_eq!(winner.unwrap(), ali);
+        assert!(bid.is_some());
+        assert_eq!(bid.unwrap().0, bid_price);
+        assert!(bid.unwrap().1);
+        assert!(!auction.contract.is_live());
+        assert!(auction.contract.is_pending_settle());
+    }
+    auction.reject(&ali, now + 2000);
+}
+
+#[test]
 fn synth_bid_reject() {
     let now = utils::get_now_u64();
     let bid_price = U512::from(10000_u64);
@@ -292,37 +321,71 @@ fn synth_bid_reject() {
         assert_eq!(arb, U512::from(1_u64));
     }
 }
-// // Trying to bid an amount below the reserve results in User(3) error
-// #[test]
-// #[should_panic = "User(19)"]
-// fn english_auction_bid_too_low_test() {
-//     let now = auction_args::AuctionArgsBuilder::get_now_u64();
-//     let mut auction = auction::AuctionContract::deploy_with_default_args(true, now);
-//     auction.bid(&auction.bob.clone(), U512::from(1), now + 1000);
-// }
-//
-// #[test]
-// #[should_panic = "User(3)"]
-// fn dutch_auction_bid_too_low_test() {
-//     let now = auction_args::AuctionArgsBuilder::get_now_u64();
-//     let mut auction_args = auction_args::AuctionArgsBuilder::default();
-//     auction_args.set_starting_price(Some(U512::from(40000)));
-//     auction_args.set_dutch();
-//     let mut auction = auction::AuctionContract::deploy_contracts(auction_args);
-//     auction.bid(&auction.bob.clone(), U512::from(30000), now + 1000);
-// }
-//
-// // Finalizing after finalizing is User(4) error.
-// #[test]
-// #[should_panic = "User(4)"]
-// fn english_auction_bid_after_finalized_test() {
-//     let now = auction_args::AuctionArgsBuilder::get_now_u64();
-//     let mut auction = auction::AuctionContract::deploy_with_default_args(true, now);
-//     auction.finalize(&auction.admin.clone(), now + 3500);
-//     assert!(auction.is_finalized());
-//     auction.finalize(&auction.admin.clone(), now + 3501);
-// }
-//
+
+#[test]
+#[should_panic = "User(4)"]
+fn bid_after_settle() {
+    let now = utils::get_now_u64();
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        U512::from(10000),
+        100_u32
+    );
+    let mut auction = SwapAuctionContract::deploy(auction_args);
+    let (_, _, _, _, bob, _) = auction.contract.accounts;
+
+    let bid_price = U512::from(10000);
+    // Compute marketplace commission
+    let mkt_com = (bid_price.as_u32() / 1000) * MARKETPLACE_COMMISSION;
+
+    // Now hit the price
+    auction.bid(&bob, bid_price, now + 1000);
+    // This should finalize the auction
+    {
+        let (winner, bid) = auction.contract.get_current_winner();
+        assert!(winner.is_some());
+        assert_eq!(winner.unwrap(), bob);
+        assert!(bid.is_some());
+        assert_eq!(bid.unwrap().0, bid_price);
+        assert!(!bid.unwrap().1);
+        assert!(!auction.contract.is_live());
+        assert!(auction.contract.is_settled());
+        let (_, mb, arb, _, _, _) = auction.contract.get_balances();
+        assert_eq!(mb, U512::from(mkt_com + 1)); // starting funds are 1
+        assert_eq!(arb, U512::from(976_u64));
+    }
+    auction.bid(&bob, bid_price, now + 2000);
+}
+
+#[test]
+#[should_panic = "User(4)"]
+fn synth_bid_after_settle() {
+    let now = utils::get_now_u64();
+    let bid_price = U512::from(10000_u64);
+    let auction_args = AuctionArgBuilder::base(
+        now,
+        bid_price.clone(),
+        100_u32
+    );
+    let mut auction = SwapAuctionContract::deploy(auction_args);
+    let (_, market, _, ali, _, _) = auction.contract.accounts;
+    auction.contract.transfer_funds(&market, U512::from(100_000_000_000_000_u64));
+    // Now hit the price
+    auction.synthetic_bid(&market, &ali, bid_price.clone(), now + 1000);
+    // This should put auction to pending settlement
+    {
+        let (winner, bid) = auction.contract.get_current_winner();
+        assert!(winner.is_some());
+        assert_eq!(winner.unwrap(), ali);
+        assert!(bid.is_some());
+        assert_eq!(bid.unwrap().0, bid_price);
+        assert!(bid.unwrap().1);
+        assert!(!auction.contract.is_live());
+        assert!(auction.contract.is_pending_settle());
+    }
+    auction.synthetic_bid(&market, &ali, bid_price.clone(), now + 2000);
+}
+
 // // Fails with BadState (User(5)) error since on bidding the contract notices that it was already finalized.
 // // User(5) might also be either that the auction managed to be finalized before expiring, or Dutch contract was initialized without starting price.
 // #[test]

@@ -160,7 +160,7 @@ impl EnglishAuction {
     pub fn finalize(time_check: bool) {
         // Get finalization and check if we're done
         if AuctionData::is_done() {
-            runtime::revert(AuctionError::AlreadyFinal)
+            runtime::revert(AuctionError::AuctionCompleted)
         };
 
         // Cannot finalize before the end of the auction
