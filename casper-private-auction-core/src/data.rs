@@ -24,14 +24,8 @@ pub const AUCTION_PENDING_SETTLE: u8 = 2;
 pub const AUCTION_REJECTED: u8 = 3;
 pub const AUCTION_SETTLED: u8 = 4;
 
-// Auction format
-pub const ENGLISH_AUCTION: u8 = 0;
-pub const DUTCH_AUCTION: u8 = 1;
-pub const SWAP: u8 = 2;
-
 const ACCOUNT_TAG: &str = "account";
 const RATE_TAG: &str = "rate";
-
 
 pub struct AuctionData;
 

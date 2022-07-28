@@ -4,13 +4,13 @@ use casper_types::{CLTyped, URef};
 use casper_types::bytesrepr::{FromBytes, ToBytes};
 use crate::AuctionError;
 
+pub const CONTRACT_TYPE: &str = "contract_type";
 pub const BID: &str = "bid";
 pub const BIDDER: &str = "bidder";
 pub const OWNER: &str = "token_owner";
 pub const BENEFICIARY_ACCOUNT: &str = "beneficiary_account";
 pub const AUCTION_PURSE: &str = "auction_purse";
 pub const TOKEN_PACKAGE_HASH: &str = "token_package_hash";
-pub const AUCTION_FORMAT: &str = "auction_format";
 pub const TOKEN_ID: &str = "token_id";
 pub const START: &str = "start_time";
 pub const CANCEL: &str = "cancellation_time";

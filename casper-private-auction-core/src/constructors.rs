@@ -6,7 +6,7 @@ use casper_contract::unwrap_or_revert::UnwrapOrRevert;
 use casper_types::{ContractPackageHash, Key, U512, account::AccountHash};
 use casper_types::contracts::NamedKeys;
 use crate::{AuctionError, keys, utils};
-use crate::data::{AuctionData, DUTCH_AUCTION, ENGLISH_AUCTION, SWAP};
+use crate::data::{AuctionData};
 
 macro_rules! named_keys {
     ( $( ($name:expr, $value:expr) ),* ) => {
@@ -146,7 +146,6 @@ pub fn create_english_auction_named_keys(marketplace_account: AccountHash, marke
         (keys::TOKEN_PACKAGE_HASH, token_package_hash),
         (keys::KYC_PACKAGE_HASH, kyc_package_hash),
         (keys::SYNTHETIC_PACKAGE_HASH, synth_package_hash),
-        (keys::AUCTION_FORMAT, ENGLISH_AUCTION),
         (keys::TOKEN_ID, token_id),
         (keys::START, start_time),
         (keys::CANCEL, cancellation_time),
@@ -198,7 +197,6 @@ pub fn create_dutch_auction_named_keys(marketplace_account: AccountHash, marketp
         (keys::TOKEN_PACKAGE_HASH, token_package_hash),
         (keys::KYC_PACKAGE_HASH, kyc_package_hash),
         (keys::SYNTHETIC_PACKAGE_HASH, synth_package_hash),
-        (keys::AUCTION_FORMAT, DUTCH_AUCTION),
         (keys::TOKEN_ID, token_id),
         (keys::START, start_time),
         (keys::END, end_time),
@@ -242,7 +240,6 @@ pub fn create_swap_named_keys(marketplace_account: AccountHash, marketplace_comm
         (keys::TOKEN_PACKAGE_HASH, token_package_hash),
         (keys::KYC_PACKAGE_HASH, kyc_package_hash),
         (keys::SYNTHETIC_PACKAGE_HASH, synth_package_hash),
-        (keys::AUCTION_FORMAT, SWAP),
         (keys::TOKEN_ID, token_id),
         (keys::START, start_time),
         (keys::END, end_time),
