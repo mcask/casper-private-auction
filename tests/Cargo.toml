@@ -6,6 +6,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+cep47 = { git="https://github.com/casper-ecosystem/casper-nft-cep47", branch="mcask" }
 casper-private-auction-core = { path = "../casper-private-auction-core" }
 casper-contract = "1.4.4"
 casper-engine-test-support = { version = "2.2.0", features = ["test-support"] }
@@ -14,6 +15,7 @@ casper-types = "1.5.0"
 maplit = "*"
 hex = "*"
 rand = "*"
+blake2 = "0.9.1"
 
 [lib]
 name = "tests"

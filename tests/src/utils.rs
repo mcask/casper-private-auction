@@ -1,4 +1,7 @@
 use std::path::PathBuf;
+use blake2::digest::VariableOutput;
+use blake2::VarBlake2b;
+use blake2::digest::Update;
 
 use casper_engine_test_support::{
     DeployItemBuilder, ExecuteRequestBuilder, InMemoryWasmTestBuilder, ARG_AMOUNT,
@@ -6,6 +9,7 @@ use casper_engine_test_support::{
 };
 use casper_execution_engine::core::engine_state::ExecuteRequest;
 use casper_types::{account::AccountHash, bytesrepr::FromBytes, runtime_args, system::mint, CLTyped, ContractHash, ContractPackageHash, Key, RuntimeArgs, StoredValue, U512, SecretKey, PublicKey};
+use casper_types::bytesrepr::ToBytes;
 use rand::Rng;
 
 pub fn base_account() -> AccountHash {
@@ -18,6 +22,15 @@ pub fn create_account() -> AccountHash {
     let key = SecretKey::ed25519_from_bytes(rand::thread_rng().gen::<[u8; 32]>()).unwrap();
     let pk = PublicKey::from(&key);
     pk.to_account_hash()
+}
+
+pub fn key_and_value_to_str<T: CLTyped + ToBytes>(key: &Key, value: &T) -> String {
+    let mut hasher = VarBlake2b::new(32).unwrap();
+    hasher.update(key.to_bytes().unwrap());
+    hasher.update(value.to_bytes().unwrap());
+    let mut ret = [0u8; 32];
+    hasher.finalize_variable(|hash| ret.clone_from_slice(hash));
+    hex::encode(ret)
 }
 
 pub fn query<T: FromBytes + CLTyped>(

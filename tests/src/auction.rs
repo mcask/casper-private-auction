@@ -6,8 +6,9 @@ use casper_engine_test_support::{
 };
 use casper_types::{
     account::AccountHash, bytesrepr::FromBytes, CLTyped, ContractHash, ContractPackageHash,
-    Key, runtime_args, RuntimeArgs, U512,
+    Key, runtime_args, RuntimeArgs, U512, U256,
 };
+use cep47::TokenId;
 use maplit::btreemap;
 use casper_private_auction_core::accounts::MARKETPLACE_ACCOUNT;
 
@@ -16,6 +17,7 @@ use casper_private_auction_core::keys;
 use crate::{
     utils::{deploy, DeploySource, fund_account, query, query_dictionary_item, create_account},
 };
+use crate::utils::key_and_value_to_str;
 
 pub trait BaseAuctionArgs {
     fn build(&self) -> RuntimeArgs;
@@ -88,7 +90,6 @@ impl AuctionContract {
 
         let (nft_hash, nft_package) = Self::deploy_nft(&mut builder, &admin, kyc_package);
 
-        let token_id = String::from("custom_token_id");
         let token_meta = btreemap! {
             "origin".to_string() => "fire".to_string()
         };
@@ -104,11 +105,12 @@ impl AuctionContract {
             &mut builder,
             &nft_package,
             &Key::Account(admin),
-            &token_id,
-            &token_meta,
+            token_meta,
             &admin,
             commissions,
         );
+
+        let token_id = Self::get_token_by_index(&builder, &nft_hash, &admin, U256::zero()).unwrap();
 
         auction_args.set_beneficiary(&admin);
         auction_args.set_token_contract_hash(&nft_package);
@@ -221,10 +223,10 @@ impl AuctionContract {
                 "origin".to_string() => "fire".to_string()
             },
             "admin" => Key::Account(*admin),
-            "kyc_package_hash" => Key::Hash(kyc_package_hash.value()),
+            "kyc_package_hash" => Some(Key::Hash(kyc_package_hash.value())),
             "contract_name" => "NFT".to_string()
         };
-        let nft_code = PathBuf::from("nft-contract.wasm");
+        let nft_code = PathBuf::from("metacask-nft.wasm");
         deploy(
             builder,
             admin,
@@ -300,15 +302,13 @@ impl AuctionContract {
         builder: &mut InMemoryWasmTestBuilder,
         nft_package: &ContractPackageHash,
         recipient: &Key,
-        token_id: &str,
-        token_meta: &BTreeMap<String, String>,
+        token_meta: BTreeMap<String, String>,
         sender: &AccountHash,
         commissions: BTreeMap<String, String>,
     ) {
         let args = runtime_args! {
             "recipient" => *recipient,
-            "token_ids" => Some(vec![token_id.to_string()]),
-            "token_metas" => vec![token_meta.clone()],
+            "token_metas" => vec![token_meta],
             "token_commissions" => vec![commissions],
         };
         deploy(
@@ -489,6 +489,20 @@ impl AuctionContract {
             true,
             Some(time),
         );
+    }
+
+    fn get_token_by_index(builder: &InMemoryWasmTestBuilder, hash: &ContractHash, account: &AccountHash, index: U256) -> Option<TokenId> {
+        query_dictionary_item(builder,
+                              Key::Hash(hash.value()),
+                              Some("owned_tokens_by_index".to_string()),
+                              key_and_value_to_str(&Key::Account(account.clone()), &index)
+        )
+            .expect("should be stored value.")
+            .as_cl_value()
+            .expect("should be cl value.")
+            .clone()
+            .into_t()
+            .expect("Wrong type in query result.")
     }
 
     fn query_dictionary_value<T: CLTyped + FromBytes>(
