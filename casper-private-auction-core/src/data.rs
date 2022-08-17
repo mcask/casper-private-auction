@@ -71,6 +71,10 @@ impl AuctionData {
         read_named_key_value::<u8>(keys::STATUS)
     }
 
+    pub fn contract_type() -> u8 {
+        read_named_key_value::<u8>(keys::CONTRACT_TYPE)
+    }
+
     pub fn update_status(status: u8) {
         write_named_key_value(keys::STATUS, status);
     }

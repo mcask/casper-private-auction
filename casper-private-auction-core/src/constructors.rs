@@ -141,6 +141,7 @@ pub fn create_english_auction_named_keys(marketplace_account: AccountHash, marke
     let minimum_bid_step = runtime::get_named_arg::<Option<U512>>(keys::MINIMUM_BID_STEP);
 
     let mut named_keys = named_keys!(
+        (keys::CONTRACT_TYPE, 2_u8),
         (keys::OWNER, token_owner),
         (keys::BENEFICIARY_ACCOUNT, beneficiary_account),
         (keys::TOKEN_PACKAGE_HASH, token_package_hash),
@@ -192,6 +193,7 @@ pub fn create_dutch_auction_named_keys(marketplace_account: AccountHash, marketp
     let status = 0_u8;
 
     let mut named_keys = named_keys!(
+        (keys::CONTRACT_TYPE, 3_u8),
         (keys::OWNER, token_owner),
         (keys::BENEFICIARY_ACCOUNT, beneficiary_account),
         (keys::TOKEN_PACKAGE_HASH, token_package_hash),
@@ -235,6 +237,7 @@ pub fn create_swap_named_keys(marketplace_account: AccountHash, marketplace_comm
     let status = 0_u8;
 
     let mut named_keys = named_keys!(
+        (keys::CONTRACT_TYPE, 4_u8),
         (keys::OWNER, token_owner),
         (keys::BENEFICIARY_ACCOUNT, beneficiary_account),
         (keys::TOKEN_PACKAGE_HASH, token_package_hash),
