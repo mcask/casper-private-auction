@@ -7,6 +7,8 @@ use crate::AuctionError;
 pub const CONTRACT_TYPE: &str = "contract_type";
 pub const BID: &str = "bid";
 pub const BIDDER: &str = "bidder";
+pub const SENDER: &str = "sender";
+pub const RECEIVER: &str = "receiver";
 pub const OWNER: &str = "token_owner";
 pub const BENEFICIARY_ACCOUNT: &str = "beneficiary_account";
 pub const AUCTION_PURSE: &str = "auction_purse";
@@ -24,6 +26,8 @@ pub const STATUS: &str = "status";
 pub const BID_PURSE: &str = "bid_purse";
 pub const AUCTION_CONTRACT_HASH: &str = "auction_contract_package_hash";
 pub const AUCTION_ACCESS_TOKEN: &str = "auction_access_token";
+pub const GIFT_CONTRACT_HASH: &str = "gift_contract_package_hash";
+pub const GIFT_ACCESS_TOKEN: &str = "gift_access_token";
 pub const EVENTS: &str = "auction_events";
 pub const EVENTS_COUNT: &str = "auction_events_count";
 pub const COMMISSIONS: &str = "commissions";
@@ -35,6 +39,8 @@ pub const MINIMUM_BID_STEP: &str = "minimum_bid_step";
 pub const MARKETPLACE_COMMISSION: &str = "marketplace_commission";
 pub const MARKETPLACE_ACCOUNT: &str = "marketplace_account";
 pub const NAME: &str = "name";
+pub const TOKENS: &str = "gift_tokens";
+pub const TOKEN_COUNT: &str = "token_count";
 
 // TODO: This needs A LOT of error handling because we don't want an auction being left in an unrecoverable state if the named keys are bad!
 pub fn read_named_key_uref(name: &str) -> URef {

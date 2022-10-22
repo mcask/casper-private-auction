@@ -30,6 +30,14 @@ pub enum AuctionEvent {
         account: Option<AccountHash>,
         bid: Option<(U512, bool)>,
     },
+    Gifted {
+        account: AccountHash,
+        token_id: String,
+    },
+    Claimed {
+        account: AccountHash,
+        token_id: String,
+    },
 }
 
 pub fn emit(event: &AuctionEvent) {
@@ -94,6 +102,24 @@ pub fn emit(event: &AuctionEvent) {
                 event.insert("synthetic", wb.1.to_string());
             }
             event.insert("event_type", "Settled".to_string());
+            (event, event_id)
+        }
+        AuctionEvent::Gifted { account, token_id } => {
+            let mut event = BTreeMap::new();
+            let event_id = events_count.to_string();
+            event.insert("event_id", event_id.clone());
+            event.insert("account", account.to_string());
+            event.insert("token_id", token_id.clone());
+            event.insert("event_type", "Gifted".to_string());
+            (event, event_id)
+        }
+        AuctionEvent::Claimed { account, token_id } => {
+            let mut event = BTreeMap::new();
+            let event_id = events_count.to_string();
+            event.insert("event_id", event_id.clone());
+            event.insert("account", account.to_string());
+            event.insert("token_id", token_id.clone());
+            event.insert("event_type", "Claimed".to_string());
             (event, event_id)
         }
     };

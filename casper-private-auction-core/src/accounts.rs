@@ -3,3 +3,4 @@
 
 pub const MARKETPLACE_COMMISSION: u32 = 25;
 pub const MARKETPLACE_ACCOUNT: &str = "account-hash-e1a2a648532b6333c66b4fe316bff945d4d51636f5bec52161331b9dd39d3122";
+pub const GIFT_ACCOUNT: &str = "account-hash-e1a2a648532b6333c66b4fe316bff945d4d51636f5bec52161331b9dd39d3122";

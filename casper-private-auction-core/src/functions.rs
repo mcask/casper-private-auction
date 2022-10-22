@@ -8,4 +8,9 @@ pub const CANCEL_AUCTION: &str = "cancel_auction";
 pub const APPROVE: &str = "approve";
 pub const REJECT: &str = "reject";
 pub const GET_BID: &str = "get_bid";
+pub const GIFT: &str = "gift";
+pub const CLAIM: &str = "claim";
+pub const CANCEL: &str = "cancel";
+
+
 

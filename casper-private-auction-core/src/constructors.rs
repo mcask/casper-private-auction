@@ -258,3 +258,13 @@ pub fn create_swap_named_keys(marketplace_account: AccountHash, marketplace_comm
     named_keys
 }
 
+pub fn create_gift_named_keys() -> NamedKeys {
+    let mut named_keys = named_keys!(
+        (keys::CONTRACT_TYPE, 5_u8),
+        (keys::TOKEN_COUNT, 0_u32)
+    );
+    utils::add_empty_dict(&mut named_keys, keys::TOKENS);
+    named_keys
+}
+
+

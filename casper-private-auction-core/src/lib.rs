@@ -28,6 +28,7 @@ pub mod constructors;
 pub mod english;
 pub mod dutch;
 pub mod swap;
+pub mod gift;
 
 struct Dict {
     uref: URef,

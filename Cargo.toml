@@ -5,6 +5,7 @@ members = [
     "english-auction-installer",
     "dutch-auction-installer",
     "swap-installer",
+    "gift-installer",
     "bid-purse",
     "tests"
 ]

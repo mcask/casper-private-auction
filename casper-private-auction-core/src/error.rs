@@ -60,6 +60,8 @@ pub enum AuctionError {
     MissingCommissions = 56,
     MissingTokenPackageHash = 57,
     SyntheticBidNotAllowed = 58,
+    ContractPackageNotFound = 59,
+    TokenNotFound = 60,
 }
 
 impl From<AuctionError> for ApiError {
