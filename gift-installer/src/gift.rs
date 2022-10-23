@@ -4,23 +4,20 @@
 extern crate alloc;
 
 use alloc::{format, string::String, vec};
-use alloc::boxed::Box;
 
 use casper_contract::{
     contract_api::{
         runtime,
-        storage, system,
+        storage,
     },
     unwrap_or_revert::UnwrapOrRevert,
 };
-use casper_types::{ApiError, CLType, CLValue, ContractPackageHash, EntryPoint, EntryPointAccess, EntryPoints, EntryPointType, Key, Parameter, runtime_args, RuntimeArgs, U512, URef};
+use casper_types::{CLType, ContractPackageHash, EntryPoint, EntryPointAccess, EntryPoints, EntryPointType, Key, Parameter};
 
-use casper_private_auction_core::{accounts, auction::Auction, bids::Bids, constructors, functions, keys};
+use casper_private_auction_core::{constructors, functions, keys};
 use casper_private_auction_core::accounts::GIFT_ACCOUNT;
-use casper_private_auction_core::data::AuctionData;
 use casper_private_auction_core::error::AuctionError;
 use casper_private_auction_core::gift::Gift;
-use casper_private_auction_core::swap::Swap;
 use casper_private_auction_core::utils::string_to_account_hash;
 
 fn check_admin() {
@@ -120,7 +117,7 @@ pub extern "C" fn call() {
     // );
     //
     let contract_name: String = runtime::get_named_arg("contract_name");
-    let named_keys = constructors::create_gift_named_keys();
+    let named_keys = constructors::create_gift_named_keys(contract_name.clone());
 
     let (contract_hash, _) = storage::new_contract(
         entry_points.into(),

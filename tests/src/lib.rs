@@ -1,4 +1,5 @@
 pub mod auction;
+pub mod gift_contract;
 
 pub mod dutch_args;
 pub mod dutch_auction;
@@ -11,11 +12,14 @@ pub mod swap_auction;
 
 pub mod utils;
 
-#[cfg(test)]
-pub mod dutch;
+// #[cfg(test)]
+// pub mod dutch;
+//
+// #[cfg(test)]
+// pub mod english;
+//
+// #[cfg(test)]
+// pub mod swap;
 
 #[cfg(test)]
-pub mod english;
-
-#[cfg(test)]
-pub mod swap;
+pub mod gift;

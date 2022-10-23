@@ -26,12 +26,14 @@ build-contract:
 	cargo build --release -p dutch-auction-installer --target wasm32-unknown-unknown
 	cargo build --release -p english-auction-installer --target wasm32-unknown-unknown
 	cargo build --release -p swap-installer --target wasm32-unknown-unknown
+	cargo build --release -p gift-installer --target wasm32-unknown-unknown
 	wasm-strip target/wasm32-unknown-unknown/release/dutch-auction-installer.wasm
 	wasm-strip target/wasm32-unknown-unknown/release/english-auction-installer.wasm
 	wasm-strip target/wasm32-unknown-unknown/release/swap-installer.wasm
 	wasm-strip target/wasm32-unknown-unknown/release/bid-purse.wasm
 	wasm-strip target/wasm32-unknown-unknown/release/extend-bid-purse.wasm
 	wasm-strip target/wasm32-unknown-unknown/release/delta-bid-purse.wasm
+	wasm-strip target/wasm32-unknown-unknown/release/gift-installer.wasm
 
 clean:
 	cargo clean

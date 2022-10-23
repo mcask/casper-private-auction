@@ -17,3 +17,10 @@ path = "src/gift.rs"
 bench = false
 doctest = false
 test = false
+
+[[bin]]
+name = "gift-installer-test"
+path = "src/gift-nft.rs"
+bench = false
+doctest = false
+test = false
